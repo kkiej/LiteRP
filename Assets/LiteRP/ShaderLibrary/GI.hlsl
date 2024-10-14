@@ -1,5 +1,5 @@
-#ifndef CUSTOM_GI_INCLUDED
-#define CUSTOM_GI_INCLUDED
+#ifndef LITERP_GI_INCLUDED
+#define LITERP_GI_INCLUDED
 
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/EntityLighting.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/ImageBasedLighting.hlsl"

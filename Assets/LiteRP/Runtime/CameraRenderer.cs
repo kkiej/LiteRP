@@ -9,6 +9,8 @@ namespace LiteRP.Runtime
 
         private Camera camera;
 
+        private static CameraSettings defaultCameraSettings = new CameraSettings();
+
         private const string BufferName = "Render Camera";
 
         private readonly CommandBuffer buffer = new CommandBuffer()
@@ -20,7 +22,7 @@ namespace LiteRP.Runtime
 
         private static readonly ShaderTagId
             UnlitShaderTagId = new ShaderTagId("SRPDefaultUnlit"),
-            LitShaderTagId = new ShaderTagId("CustomLit");
+            LitShaderTagId = new ShaderTagId("LiteRPLit");
 
         private static int frameBufferId = Shader.PropertyToID("_CameraFrameBuffer");
 
@@ -36,6 +38,14 @@ namespace LiteRP.Runtime
         {
             this.context = context;
             this.camera = camera;
+
+            var crpCamera = camera.GetComponent<CustomRenderPipelineCamera>();
+            CameraSettings cameraSettings = crpCamera ? crpCamera.Settings : defaultCameraSettings;
+
+            if (cameraSettings.overridePostFX)
+            {
+                postFXSettings = cameraSettings.postFXSettings;
+            }
             
             PrepareBuffer();
             PrepareForSceneWindow();
@@ -50,7 +60,8 @@ namespace LiteRP.Runtime
             buffer.BeginSample(SampleName);
             ExecuteBuffer();
             lighting.Setup(context, cullingResults, shadowSettings, useLightsPerObject);
-            postFXStack.Setup(context, camera, postFXSettings, useHDR, colorLUTResolution);
+            postFXStack.Setup(context, camera, postFXSettings, useHDR, colorLUTResolution,
+                cameraSettings.finalBlendMode);
             buffer.EndSample(SampleName);
             Setup();
             DrawVisibleGeometry(useDynamicBatching, useGPUInstancing, useLightsPerObject);
@@ -93,7 +104,7 @@ namespace LiteRP.Runtime
                     RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             }
             
-            buffer.ClearRenderTarget(flags <= CameraClearFlags.Depth, flags == CameraClearFlags.Color,
+            buffer.ClearRenderTarget(flags <= CameraClearFlags.Depth, flags <= CameraClearFlags.Color,
                 flags == CameraClearFlags.Color ? camera.backgroundColor.linear : Color.clear);
             buffer.BeginSample(SampleName);
             ExecuteBuffer();

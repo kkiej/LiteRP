@@ -1,5 +1,5 @@
-#ifndef CUSTOM_LIT_PASS_INCLUDED
-#define CUSTOM_LIT_PASS_INCLUDED
+#ifndef LITERP_LIT_PASS_INCLUDED
+#define LITERP_LIT_PASS_INCLUDED
 
 #include "../ShaderLibrary/Surface.hlsl"
 #include "../ShaderLibrary/Shadows.hlsl"
@@ -54,7 +54,7 @@ Varyings LitPassVertex(Attributes input)
     return output;
 }
 
-half4 LitPassFragment(Varyings input) : SV_TARGET
+float4 LitPassFragment(Varyings input) : SV_TARGET
 {
     UNITY_SETUP_INSTANCE_ID(input);
     ClipLOD(input.positionCS.xy, unity_LODFade.x);
@@ -67,7 +67,7 @@ half4 LitPassFragment(Varyings input) : SV_TARGET
     config.detailUV = input.detailUV;
     config.useDetail = true;
 #endif
-    half4 color = GetBase(config);
+    float4 color = GetBase(config);
     
 #if defined(_CLIPPING)
     clip(color.a - GetCutoff(config));
@@ -99,9 +99,9 @@ half4 LitPassFragment(Varyings input) : SV_TARGET
 #endif
 
     GI gi = GetGI(GI_FRAGMENT_DATA(input), surface, brdf);
-    half3 col = GetLighting(surface, brdf, gi);
+    float3 col = GetLighting(surface, brdf, gi);
     col += GetEmission(config);
     
-    return half4(col, surface.alpha);
+    return float4(col, GetFinalAlpha(surface.alpha));
 }
 #endif

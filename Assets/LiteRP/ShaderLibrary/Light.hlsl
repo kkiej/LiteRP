@@ -1,10 +1,10 @@
-#ifndef CUSTOM_LIGHT_INCLUDED
-#define CUSTOM_LIGHT_INCLUDED
+#ifndef LITERP_LIGHT_INCLUDED
+#define LITERP_LIGHT_INCLUDED
 
 #define MAX_DIRECTIONAL_LIGHT_COUNT 4
 #define MAX_OTHER_LIGHT_COUNT 64
 
-CBUFFER_START(_CustomLight)
+CBUFFER_START(_LiteRPLight)
 	int _DirectionalLightCount;
 	float4 _DirectionalLightColors[MAX_DIRECTIONAL_LIGHT_COUNT];
 	float4 _DirectionalLightDirections[MAX_DIRECTIONAL_LIGHT_COUNT];

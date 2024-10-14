@@ -1,5 +1,5 @@
-#ifndef CUSTOM_COMMON_INCLUDED
-#define CUSTOM_COMMON_INCLUDED
+#ifndef LITERP_COMMON_INCLUDED
+#define LITERP_COMMON_INCLUDED
 
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/Common.hlsl"
 #include "Packages/com.unity.render-pipelines.core/ShaderLibrary/CommonMaterial.hlsl"

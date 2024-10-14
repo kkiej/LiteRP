@@ -1,5 +1,5 @@
-#ifndef CUSTOM_UNLIT_PASS_INCLUDED
-#define CUSTOM_UNLIT_PASS_INCLUDED
+#ifndef LITERP_UNLIT_PASS_INCLUDED
+#define LITERP_UNLIT_PASS_INCLUDED
 
 struct Attributes
 {
@@ -28,7 +28,7 @@ Varyings UnlitPassVertex(Attributes input)
     return output;
 }
 
-half4 UnlitPassFragment(Varyings input) : SV_TARGET
+float4 UnlitPassFragment(Varyings input) : SV_TARGET
 {
     UNITY_SETUP_INSTANCE_ID(input);
     InputConfig config = GetInputConfig(input.uv);
@@ -37,6 +37,6 @@ half4 UnlitPassFragment(Varyings input) : SV_TARGET
     clip(color.a - GetCutoff(config));
 #endif
     
-    return color;
+    return float4(color.rgb, GetFinalAlpha(color.a));
 }
 #endif

@@ -146,7 +146,9 @@ Shader "Hidden/Lite RP/Post FX Stack"
 		
 		Pass
 		{
-			Name "ColorGrading Final"
+			Name "Final"
+			
+			Blend [_FinalSrcBlend] [_FinalDstBlend]
 			
 			HLSLPROGRAM
 			#pragma target 3.5

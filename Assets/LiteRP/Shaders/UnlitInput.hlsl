@@ -1,5 +1,5 @@
-#ifndef CUSTOM_UNLIT_INPUT_INCLUDED
-#define CUSTOM_UNLIT_INPUT_INCLUDED
+#ifndef LITERP_UNLIT_INPUT_INCLUDED
+#define LITERP_UNLIT_INPUT_INCLUDED
 
 #define INPUT_PROP(name) UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, name)
 
@@ -10,6 +10,7 @@ UNITY_INSTANCING_BUFFER_START(UnityPerMaterial)
     UNITY_DEFINE_INSTANCED_PROP(float4, _BaseMap_ST)
     UNITY_DEFINE_INSTANCED_PROP(half4, _BaseColor)
     UNITY_DEFINE_INSTANCED_PROP(half, _Cutoff)
+    UNITY_DEFINE_INSTANCED_PROP(half, _ZWrite)
 UNITY_INSTANCING_BUFFER_END(UnityPerMaterial)
 
 struct InputConfig
@@ -62,6 +63,11 @@ float GetFresnel(InputConfig c)
 half3 GetEmission(InputConfig c)
 {
     return GetBase(c).rgb;
+}
+
+float GetFinalAlpha (float alpha)
+{
+    return INPUT_PROP(_ZWrite) ? 1.0 : alpha;
 }
 
 #endif

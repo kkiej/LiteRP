@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 
 namespace LiteRP.Editor
 {
-    public class CustomShaderGUI : ShaderGUI
+    public class LiteRPShaderGUI : ShaderGUI
     {
         private bool _showPresets;
         private MaterialEditor editor;

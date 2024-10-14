@@ -1,5 +1,5 @@
-#ifndef CUSTOM_META_PASS_INCLUDED
-#define CUSTOM_META_PASS_INCLUDED
+#ifndef LITERP_META_PASS_INCLUDED
+#define LITERP_META_PASS_INCLUDED
 
 #include "../ShaderLibrary/Surface.hlsl"
 #include "../ShaderLibrary/Shadows.hlsl"

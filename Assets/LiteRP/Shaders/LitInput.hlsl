@@ -1,5 +1,5 @@
-#ifndef CUSTOM_LIT_INPUT_INCLUDED
-#define CUSTOM_LIT_INPUT_INCLUDED
+#ifndef LITERP_LIT_INPUT_INCLUDED
+#define LITERP_LIT_INPUT_INCLUDED
 
 #define INPUT_PROP(name) UNITY_ACCESS_INSTANCED_PROP(UnityPerMaterial, name)
 
@@ -18,6 +18,7 @@ UNITY_INSTANCING_BUFFER_START(UnityPerMaterial)
     UNITY_DEFINE_INSTANCED_PROP(float4, _DetailMap_ST)
     UNITY_DEFINE_INSTANCED_PROP(half4, _BaseColor)
     UNITY_DEFINE_INSTANCED_PROP(half, _Cutoff)
+    UNITY_DEFINE_INSTANCED_PROP(half, _ZWrite)
     UNITY_DEFINE_INSTANCED_PROP(half, _Metallic)
     UNITY_DEFINE_INSTANCED_PROP(half, _Occlusion)
     UNITY_DEFINE_INSTANCED_PROP(half, _Smoothness)
@@ -156,6 +157,11 @@ half3 GetEmission(InputConfig c)
     half4 map = SAMPLE_TEXTURE2D(_EmissionMap, sampler_BaseMap, c.UV);
     half4 color = INPUT_PROP(_EmissionColor);
     return map.rgb * color.rgb;
+}
+
+float GetFinalAlpha (float alpha)
+{
+    return INPUT_PROP(_ZWrite) ? 1.0 : alpha;
 }
 
 #endif

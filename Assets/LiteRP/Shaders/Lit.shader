@@ -46,7 +46,7 @@ Shader "Lite RP/Lit"
         Pass
         {
             Name "Lit Forward"
-            Tags { "LightMode"="CustomLit" }
+            Tags { "LightMode"="LiteRPLit" }
             
             Blend [_SrcBlend] [_DstBlend]
             ZWrite [_ZWrite]
@@ -110,5 +110,5 @@ Shader "Lite RP/Lit"
             ENDHLSL
         }
     }
-    CustomEditor "LiteRP.Editor.CustomShaderGUI"
+    CustomEditor "LiteRP.Editor.LiteRPShaderGUI"
 }
