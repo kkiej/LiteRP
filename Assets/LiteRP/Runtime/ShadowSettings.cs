@@ -1,4 +1,5 @@
 ﻿using UnityEngine;
+using UnityEngine.Serialization;
 
 namespace LiteRP.Runtime
 {
@@ -70,7 +71,7 @@ namespace LiteRP.Runtime
             public FilterMode filter;
         }
 
-        public Other other = new Other()
+        public Other additionalLights = new Other()
         {
             atlasSize = MapSize._1024,
             filter = FilterMode.PCF2x2

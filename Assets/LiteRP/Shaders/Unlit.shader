@@ -22,7 +22,7 @@ Shader "Lite RP/Unlit"
         Pass
         {
             Name "Unlit Forward"
-            Blend [_SrcBlend] [_DstBlend]
+            Blend [_SrcBlend] [_DstBlend], One OneMinusSrcAlpha
             ZWrite [_ZWrite]
             
             HLSLPROGRAM

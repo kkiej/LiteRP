@@ -5,7 +5,7 @@ namespace LiteRP.Runtime
 {
     public class Shadows
     {
-        private const string bufferName = "Shadows";
+        private const string bufferName = "MainLightShadowPass";
 
         private const int maxShadowedDirectionalLightCount = 4, maxShadowedOtherLightCount = 16, maxCascades = 4;
 
@@ -249,9 +249,51 @@ namespace LiteRP.Runtime
             ExecuteBuffer();
         }
         
+        void RenderDirectionalShadows(int index, int split, int tileSize)
+        {
+            ShadowedDirectionalLight light = shadowedDirectionalLights[index];
+            var shadowSettings = new ShadowDrawingSettings(cullingResults, light.visibleLightIndex,
+                BatchCullingProjectionType.Orthographic);
+            int cascadeCount = settings.directional.cascadeCount;
+            int tileOffset = index * cascadeCount;
+            Vector3 ratios = settings.directional.CascadeRatios;
+            float cullingFactor = Mathf.Max(0f, 0.8f - settings.directional.cascadeFade);
+            float tileScale = 1f / split;
+            for (int i = 0; i < cascadeCount; i++)
+            {
+                cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(light.visibleLightIndex, i,
+                    cascadeCount, ratios, tileSize, light.nearPlaneOffset,
+                    out Matrix4x4 viewMatrix, out Matrix4x4 projectionMatrix, out ShadowSplitData splitData);
+                splitData.shadowCascadeBlendCullingFactor = cullingFactor;
+                shadowSettings.splitData = splitData;
+                if (index == 0)
+                {
+                    SetCascadeData(i, splitData.cullingSphere, tileSize);
+                }
+                int tileIndex = tileOffset + i;
+                dirShadowMatrices[tileIndex] = ConvertToAtlasMatrix(projectionMatrix * viewMatrix,
+                    SetTileViewport(tileIndex, split, tileSize), tileScale);
+                buffer.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
+                buffer.SetGlobalDepthBias(0f, light.slopeScaleBias);
+                ExecuteBuffer();
+                context.DrawShadows(ref shadowSettings);
+                buffer.SetGlobalDepthBias(0f, 0f);
+            }
+        }
+        
+        void SetCascadeData(int index, Vector4 cullingSphere, float tileSize)
+        {
+            float texelSize = 2f * cullingSphere.w / tileSize;
+            float filterSize = texelSize * ((float)settings.directional.filter + 1f);
+            cullingSphere.w -= filterSize;
+            cullingSphere.w *= cullingSphere.w;
+            cascadeCullingSpheres[index] = cullingSphere;
+            cascadeData[index] = new Vector4(1f / cullingSphere.w, filterSize * 1.4142136f);
+        }
+        
         void RenderOtherShadows()
         {
-            int atlasSize = (int)settings.other.atlasSize;
+            int atlasSize = (int)settings.additionalLights.atlasSize;
             atlasSizes.z = atlasSize;
             atlasSizes.w = 1f / atlasSize;
             buffer.GetTemporaryRT(otherShadowAtlasId, atlasSize, atlasSize, 32,
@@ -283,7 +325,7 @@ namespace LiteRP.Runtime
             
             buffer.SetGlobalMatrixArray(otherShadowMatricesId, otherShadowMatrices);
             buffer.SetGlobalVectorArray(otherShadowTilesId, otherShadowTiles);
-            SetKeywords(otherFilterKeywords, (int)settings.other.filter - 1);
+            SetKeywords(otherFilterKeywords, (int)settings.additionalLights.filter - 1);
             buffer.EndSample(bufferName);
             ExecuteBuffer();
         }
@@ -303,37 +345,6 @@ namespace LiteRP.Runtime
             }
         }
 
-        void RenderDirectionalShadows(int index, int split, int tileSize)
-        {
-            ShadowedDirectionalLight light = shadowedDirectionalLights[index];
-            var shadowSettings = new ShadowDrawingSettings(cullingResults, light.visibleLightIndex);
-            int cascadeCount = settings.directional.cascadeCount;
-            int tileOffset = index * cascadeCount;
-            Vector3 ratios = settings.directional.CascadeRatios;
-            float cullingFactor = Mathf.Max(0f, 0.8f - settings.directional.cascadeFade);
-            float tileScale = 1f / split;
-            for (int i = 0; i < cascadeCount; i++)
-            {
-                cullingResults.ComputeDirectionalShadowMatricesAndCullingPrimitives(light.visibleLightIndex, i,
-                    cascadeCount, ratios, tileSize, light.nearPlaneOffset,
-                    out Matrix4x4 viewMatrix, out Matrix4x4 projectionMatrix, out ShadowSplitData splitData);
-                splitData.shadowCascadeBlendCullingFactor = cullingFactor;
-                shadowSettings.splitData = splitData;
-                if (index == 0)
-                {
-                    SetCascadeData(i, splitData.cullingSphere, tileSize);
-                }
-                int tileIndex = tileOffset + i;
-                dirShadowMatrices[tileIndex] = ConvertToAtlasMatrix(projectionMatrix * viewMatrix,
-                    SetTileViewport(tileIndex, split, tileSize), tileScale);
-                buffer.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
-                buffer.SetGlobalDepthBias(0f, light.slopeScaleBias);
-                ExecuteBuffer();
-                context.DrawShadows(ref shadowSettings);
-                buffer.SetGlobalDepthBias(0f, 0f);
-            }
-        }
-
         /// <summary>
         /// 渲染单个聚光灯的阴影贴图到OtherShadowAtlas
         /// </summary>
@@ -343,12 +354,13 @@ namespace LiteRP.Runtime
         private void RenderSpotShadows(int index, int split, int tileSize)
         {
             ShadowedOtherLight light = shadowedOtherLights[index];
-            var shadowSettings = new ShadowDrawingSettings(cullingResults, light.visibleLightIndex);
+            var shadowSettings = new ShadowDrawingSettings(cullingResults, light.visibleLightIndex,
+                BatchCullingProjectionType.Perspective);
             cullingResults.ComputeSpotShadowMatricesAndCullingPrimitives(light.visibleLightIndex,
                 out Matrix4x4 viewMatrix, out Matrix4x4 projectionMatrix, out ShadowSplitData splitData);
             shadowSettings.splitData = splitData;
             float texelSize = 2f / (tileSize * projectionMatrix.m00);
-            float filterSize = texelSize * ((float)settings.other.filter + 1f);
+            float filterSize = texelSize * ((float)settings.additionalLights.filter + 1f);
             float bias = light.normalBias * filterSize * 1.4142136f;
             Vector2 offset = SetTileViewport(index, split, tileSize);
             float tileScale = 1f / split;
@@ -364,10 +376,11 @@ namespace LiteRP.Runtime
         private void RenderPointShadows(int index, int split, int tileSize)
         {
             ShadowedOtherLight light = shadowedOtherLights[index];
-            var shadowSettings = new ShadowDrawingSettings(cullingResults, light.visibleLightIndex);
+            var shadowSettings = new ShadowDrawingSettings(cullingResults, light.visibleLightIndex,
+                BatchCullingProjectionType.Perspective);
             
             float texelSize = 2f / tileSize;
-            float filterSize = texelSize * ((float)settings.other.filter + 1f);
+            float filterSize = texelSize * ((float)settings.additionalLights.filter + 1f);
             float bias = light.normalBias * filterSize * 1.4142136f;
             float tileScale = 1f / split;
             float fovBias = Mathf.Atan(1f + bias + filterSize) * Mathf.Rad2Deg * 2f - 90f;
@@ -401,16 +414,6 @@ namespace LiteRP.Runtime
             data.z = scale - border - border;
             data.w = bias;
             otherShadowTiles[index] = data;
-        }
-
-        void SetCascadeData(int index, Vector4 cullingSphere, float tileSize)
-        {
-            float texelSize = 2f * cullingSphere.w / tileSize;
-            float filterSize = texelSize * ((float)settings.directional.filter + 1f);
-            cullingSphere.w -= filterSize;
-            cullingSphere.w *= cullingSphere.w;
-            cascadeCullingSpheres[index] = cullingSphere;
-            cascadeData[index] = new Vector4(1f / cullingSphere.w, filterSize * 1.4142136f);
         }
         
         Vector2 SetTileViewport (int index, int split, float tileSize)

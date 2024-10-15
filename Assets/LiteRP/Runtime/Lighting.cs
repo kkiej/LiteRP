@@ -31,9 +31,9 @@ namespace LiteRP.Runtime
 
         private static readonly Vector4[]
             //方向光属性数组
-            DirLightColors = new Vector4[MaxDirLightCount],
-            DirLightDirections = new Vector4[MaxDirLightCount],
-            DirLightShadowData = new Vector4[MaxDirLightCount],
+            dirLightColors = new Vector4[MaxDirLightCount],
+            dirLightDirections = new Vector4[MaxDirLightCount],
+            dirLightShadowData = new Vector4[MaxDirLightCount],
             //其他光属性数组
             otherLightColors = new Vector4[maxOtherLightCount],
             otherLightPositions = new Vector4[maxOtherLightCount],
@@ -126,9 +126,9 @@ namespace LiteRP.Runtime
             buffer.SetGlobalInt(DirLightCountId, dirLightCount);
             if (dirLightCount > 0)
             {
-                buffer.SetGlobalVectorArray(DirLightColorsId, DirLightColors);
-                buffer.SetGlobalVectorArray(DirLightDirectionsId, DirLightDirections);
-                buffer.SetGlobalVectorArray(DirLightShadowDataId, DirLightShadowData);
+                buffer.SetGlobalVectorArray(DirLightColorsId, dirLightColors);
+                buffer.SetGlobalVectorArray(DirLightDirectionsId, dirLightDirections);
+                buffer.SetGlobalVectorArray(DirLightShadowDataId, dirLightShadowData);
             }
             
             buffer.SetGlobalInt(otherLightCountId, otherLightCount);
@@ -144,24 +144,11 @@ namespace LiteRP.Runtime
 
         private void SetupDirectionalLight(int index, int visibleIndex, ref VisibleLight visibleLight)
         {
-            DirLightColors[index] = visibleLight.finalColor;
-            DirLightDirections[index] = -visibleLight.localToWorldMatrix.GetColumn(2);
-            DirLightShadowData[index] = shadows.ReserveDirectionalShadows(visibleLight.light, visibleIndex);
+            dirLightColors[index] = visibleLight.finalColor;
+            dirLightDirections[index] = -visibleLight.localToWorldMatrix.GetColumn(2);
+            dirLightShadowData[index] = shadows.ReserveDirectionalShadows(visibleLight.light, visibleIndex);
         }
 
-        private void SetupPointLight(int index, int visibleIndex, ref VisibleLight visibleLight)
-        {
-            otherLightColors[index] = visibleLight.finalColor;
-            Vector4 position = visibleLight.localToWorldMatrix.GetColumn(3);
-            position.w = 1f / Mathf.Max(visibleLight.range * visibleLight.range, 0.00001f);
-            otherLightPositions[index] = position;
-
-            otherLightSpotAngles[index] = new Vector4(0f, 1f);
-
-            Light light = visibleLight.light;
-            otherLightShadowData[index] = shadows.ReserveOtherShadows(light, visibleIndex);
-        }
-        
         private void SetupSpotLight(int index, int visibleIndex, ref VisibleLight visibleLight)
         {
             otherLightColors[index] = visibleLight.finalColor;
@@ -175,6 +162,19 @@ namespace LiteRP.Runtime
             float outerCos = Mathf.Cos(Mathf.Deg2Rad * 0.5f * visibleLight.spotAngle);
             float angleRangeInv = 1f / Mathf.Max(innerCos - outerCos, 0.001f);
             otherLightSpotAngles[index] = new Vector4(angleRangeInv, -outerCos * angleRangeInv);
+            otherLightShadowData[index] = shadows.ReserveOtherShadows(light, visibleIndex);
+        }
+        
+        private void SetupPointLight(int index, int visibleIndex, ref VisibleLight visibleLight)
+        {
+            otherLightColors[index] = visibleLight.finalColor;
+            Vector4 position = visibleLight.localToWorldMatrix.GetColumn(3);
+            position.w = 1f / Mathf.Max(visibleLight.range * visibleLight.range, 0.00001f);
+            otherLightPositions[index] = position;
+
+            otherLightSpotAngles[index] = new Vector4(0f, 1f);
+
+            Light light = visibleLight.light;
             otherLightShadowData[index] = shadows.ReserveOtherShadows(light, visibleIndex);
         }
 

@@ -39,8 +39,8 @@ namespace LiteRP.Runtime
             this.context = context;
             this.camera = camera;
 
-            var crpCamera = camera.GetComponent<CustomRenderPipelineCamera>();
-            CameraSettings cameraSettings = crpCamera ? crpCamera.Settings : defaultCameraSettings;
+            var liteRPCamera = camera.GetComponent<LiteRenderPipelineCamera>();
+            CameraSettings cameraSettings = liteRPCamera ? liteRPCamera.Settings : defaultCameraSettings;
 
             if (cameraSettings.overridePostFX)
             {
@@ -98,10 +98,10 @@ namespace LiteRP.Runtime
                 {
                     flags = CameraClearFlags.Color;
                 }
-                buffer.GetTemporaryRT(frameBufferId, camera.pixelWidth, camera.pixelHeight, 32,
-                    FilterMode.Bilinear, useHDR ? RenderTextureFormat.DefaultHDR : RenderTextureFormat.Default);
-                buffer.SetRenderTarget(frameBufferId,
-                    RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
+
+                buffer.GetTemporaryRT(frameBufferId, camera.pixelWidth, camera.pixelHeight, 32, FilterMode.Bilinear,
+                    useHDR ? RenderTextureFormat.DefaultHDR : RenderTextureFormat.Default);
+                buffer.SetRenderTarget(frameBufferId, RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             }
             
             buffer.ClearRenderTarget(flags <= CameraClearFlags.Depth, flags <= CameraClearFlags.Color,

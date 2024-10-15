@@ -3,7 +3,7 @@
 namespace LiteRP.Runtime
 {
     [DisallowMultipleComponent, RequireComponent(typeof(Camera))]
-    public class CustomRenderPipelineCamera : MonoBehaviour
+    public class LiteRenderPipelineCamera : MonoBehaviour
     {
         [SerializeField]
         private CameraSettings settings = default;

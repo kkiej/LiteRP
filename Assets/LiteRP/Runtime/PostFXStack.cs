@@ -6,7 +6,7 @@ namespace LiteRP.Runtime
 {
     public partial class PostFXStack
     {
-        private const string bufferName = "Post FX";
+        private const string bufferName = "Render PostProcessing Effects";
 
         private CommandBuffer buffer = new CommandBuffer()
         {

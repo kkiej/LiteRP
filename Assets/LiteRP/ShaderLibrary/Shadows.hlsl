@@ -34,7 +34,7 @@ TEXTURE2D_SHADOW(_OtherShadowAtlas);
 #define SHADOW_SAMPLER sampler_linear_clamp_compare
 SAMPLER_CMP(SHADOW_SAMPLER);
 
-CBUFFER_START(_CustomShadows)
+CBUFFER_START(_LiteRPShadows)
 	int _CascadeCount;
 	float4 _CascadeCullingSpheres[MAX_CASCADE_COUNT];
 	float4 _CascadeData[MAX_CASCADE_COUNT];

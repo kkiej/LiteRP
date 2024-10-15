@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 namespace LiteRP.Runtime
 {
     [CreateAssetMenu(menuName = "Rendering/Lite Render Pipeline")]
-    public class LiteRenderPipelineAsset : RenderPipelineAsset
+    public partial class LiteRenderPipelineAsset : RenderPipelineAsset
     {
         [SerializeField]
         private bool allowHDR = true;

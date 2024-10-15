@@ -48,7 +48,7 @@ Shader "Lite RP/Lit"
             Name "Lit Forward"
             Tags { "LightMode"="LiteRPLit" }
             
-            Blend [_SrcBlend] [_DstBlend]
+            Blend [_SrcBlend] [_DstBlend], One OneMinusSrcAlpha
             ZWrite [_ZWrite]
             
             HLSLPROGRAM
