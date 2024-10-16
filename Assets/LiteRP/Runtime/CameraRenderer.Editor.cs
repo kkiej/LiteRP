@@ -33,6 +33,7 @@ namespace LiteRP.Runtime
             if (camera.cameraType == CameraType.SceneView)
             {
                 ScriptableRenderContext.EmitWorldGeometryForSceneView(camera);
+                useScaledRendering = false;
             }
         }
 
@@ -40,6 +41,11 @@ namespace LiteRP.Runtime
         {
             if (Handles.ShouldRenderGizmos())
             {
+                if (useIntermediateBuffer)
+                {
+                    Draw(depthAttachmentId, BuiltinRenderTextureType.CameraTarget, true);
+                    ExecuteBuffer();
+                }
                 context.DrawGizmos(camera, GizmoSubset.PreImageEffects);
             }
         }
@@ -48,6 +54,11 @@ namespace LiteRP.Runtime
         {
             if (Handles.ShouldRenderGizmos())
             {
+                if (useIntermediateBuffer)
+                {
+                    Draw(depthAttachmentId, BuiltinRenderTextureType.CameraTarget, true);
+                    ExecuteBuffer();
+                }
                 context.DrawGizmos(camera, GizmoSubset.PostImageEffects);
             }
         }

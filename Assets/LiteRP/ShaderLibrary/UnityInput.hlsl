@@ -10,13 +10,18 @@ CBUFFER_START(UnityPerDraw)
     //对于fade in的LOD，-1代表开始fade in，0代表完全fade in），y表示过渡值在16个区间划分内的值（不会使用到）
     float4 unity_LODFade;
     real4 unity_WorldTransformParams;
+
+    float4 unity_RenderingLayer;
     
     real4 unity_LightData;
     real4 unity_LightIndices[2];
     
     float4 unity_ProbesOcclusion;
-    
+
+    float4 unity_OrthoParams;
     float4 _ProjectionParams;
+    float4 _ScreenParams;
+    float4 _ZBufferParams;
     
     float4 unity_SpecCube0_HDR;
     

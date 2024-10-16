@@ -6,7 +6,6 @@
 
 TEXTURE2D(_PostFXSource);
 TEXTURE2D(_PostFXSource2);
-SAMPLER(sampler_linear_clamp);
 
 float4 _PostFXSource_TexelSize;
 
@@ -126,14 +125,14 @@ float3 ColorGrade(float3 color, bool useACES = false)
 
 struct Varyings
 {
-    float4 positionCS : SV_POSITION;
+    float4 positionCS_SS : SV_POSITION;
     float2 screenUV : VAR_SCREEN_UV;
 };
 
 Varyings DefaultPassVertex (uint vertexID : SV_VertexID)
 {
     Varyings output;
-    output.positionCS = float4(
+    output.positionCS_SS = float4(
         vertexID <= 1 ? -1.0 : 3.0,
         vertexID == 1 ? 3.0 : -1.0,
         0.0, 1.0
@@ -316,6 +315,20 @@ float4 FinalPassFragment (Varyings input) : SV_TARGET
     float4 color = GetSource(input.screenUV);
     color.rgb = ApplyColorGradingLUT(color.rgb);
     return color;
+}
+
+bool _CopyBicubic;
+
+float4 FinalPassFragmentRescale(Varyings input) : SV_TARGET
+{
+    if(_CopyBicubic)
+    {
+        return GetSourceBicubic(input.screenUV);
+    }
+    else
+    {
+        return GetSource(input.screenUV);
+    }
 }
 
 #endif

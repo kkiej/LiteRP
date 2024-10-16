@@ -7,7 +7,11 @@ namespace LiteRP.Runtime
     public partial class LiteRenderPipelineAsset : RenderPipelineAsset
     {
         [SerializeField]
-        private bool allowHDR = true;
+        private CameraBufferSettings cameraBuffer = new CameraBufferSettings
+        {
+            allowHDR = true,
+            renderScale = 1f
+        };
         
         [SerializeField]
         private bool
@@ -31,11 +35,14 @@ namespace LiteRP.Runtime
 
         [SerializeField]
         private ColorLUTResolution colorLUTResolution = ColorLUTResolution._32;
-        
+
+        [SerializeField]
+        private Shader cameraRendererShader = default;
         protected override RenderPipeline CreatePipeline()
         {
-            return new LiteRenderPipeline(allowHDR, useDynamicBatching, useGPUInstancing,
-                useSRPBatcher, useLightsPerObject, shadows, postFXSettings, (int)colorLUTResolution);
+            return new LiteRenderPipeline(cameraBuffer, useDynamicBatching, useGPUInstancing,
+                useSRPBatcher, useLightsPerObject, shadows, postFXSettings, (int)colorLUTResolution,
+                cameraRendererShader);
         }
     }
 }

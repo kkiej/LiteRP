@@ -16,15 +16,15 @@ SAMPLER(sampler_DetailMap);
 UNITY_INSTANCING_BUFFER_START(UnityPerMaterial)
     UNITY_DEFINE_INSTANCED_PROP(float4, _BaseMap_ST)
     UNITY_DEFINE_INSTANCED_PROP(float4, _DetailMap_ST)
-    UNITY_DEFINE_INSTANCED_PROP(half4, _BaseColor)
-    UNITY_DEFINE_INSTANCED_PROP(half, _Cutoff)
-    UNITY_DEFINE_INSTANCED_PROP(half, _ZWrite)
-    UNITY_DEFINE_INSTANCED_PROP(half, _Metallic)
-    UNITY_DEFINE_INSTANCED_PROP(half, _Occlusion)
-    UNITY_DEFINE_INSTANCED_PROP(half, _Smoothness)
-    UNITY_DEFINE_INSTANCED_PROP(half, _Fresnel)
+    UNITY_DEFINE_INSTANCED_PROP(float4, _BaseColor)
+    UNITY_DEFINE_INSTANCED_PROP(float, _Cutoff)
+    UNITY_DEFINE_INSTANCED_PROP(float, _ZWrite)
+    UNITY_DEFINE_INSTANCED_PROP(float, _Metallic)
+    UNITY_DEFINE_INSTANCED_PROP(float, _Occlusion)
+    UNITY_DEFINE_INSTANCED_PROP(float, _Smoothness)
+    UNITY_DEFINE_INSTANCED_PROP(float, _Fresnel)
     UNITY_DEFINE_INSTANCED_PROP(float, _NormalScale)
-    UNITY_DEFINE_INSTANCED_PROP(half4, _EmissionColor)
+    UNITY_DEFINE_INSTANCED_PROP(float4, _EmissionColor)
     UNITY_DEFINE_INSTANCED_PROP(float, _DetailAlbedo)
     UNITY_DEFINE_INSTANCED_PROP(float, _DetailSmoothness)
     UNITY_DEFINE_INSTANCED_PROP(float, _DetailNormalScale)
@@ -32,15 +32,17 @@ UNITY_INSTANCING_BUFFER_END(UnityPerMaterial)
 
 struct InputConfig
 {
+    Fragment fragment;
     float2 UV;
     float2 detailUV;
     bool useMask;
     bool useDetail;
 };
 
-InputConfig GetInputConfig(float2 UV, float2 detailUV = 0.0)
+InputConfig GetInputConfig(float4 positionSS, float2 UV, float2 detailUV = 0.0)
 {
     InputConfig c;
+    c.fragment = GetFragment(positionSS);
     c.UV = UV;
     c.detailUV = detailUV;
     c.useMask = false;

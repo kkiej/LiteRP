@@ -15,7 +15,7 @@ namespace LiteRP.Editor
         public override void OnInspectorGUI()
         {
             base.OnInspectorGUI();
-            DrawRenderingLayerMask();
+            RenderingLayerMaskDrawer.Draw(settings.renderingLayerMask, renderingLayerMaskLabel);
             
             if (!settings.lightType.hasMultipleDifferentValues &&
                 (LightType)settings.lightType.enumValueIndex == LightType.Spot)
@@ -33,22 +33,6 @@ namespace LiteRP.Editor
                         ? "Culling Mask only affects shadows."
                         : "Culling Mask only affects shadow unless Use Lights Per Objects is on.", MessageType.Warning);
             }
-        }
-        
-        void DrawRenderingLayerMask ()
-        {
-            SerializedProperty property = settings.renderingLayerMask;
-            EditorGUI.showMixedValue = property.hasMultipleDifferentValues;
-            EditorGUI.BeginChangeCheck();
-            int mask = property.intValue;
-            mask = EditorGUILayout.MaskField(
-                renderingLayerMaskLabel, mask,
-                GraphicsSettings.currentRenderPipeline.renderingLayerMaskNames
-            );
-            if (EditorGUI.EndChangeCheck()) {
-                property.intValue = mask;
-            }
-            EditorGUI.showMixedValue = false;
         }
     }
 }

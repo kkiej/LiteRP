@@ -37,10 +37,14 @@ namespace LiteRP.Runtime
             ToneMappingACES,
             ToneMappingNeutral,
             ToneMappingReinhard,
-            Final
+            Final,
+            FinalRescale
         }
 
         private int
+            copyBicubicId = Shader.PropertyToID("_CopyBicubic"),
+            finalResultId = Shader.PropertyToID("_FinalResult"),
+            
             bloomBucibicUpsamplingId = Shader.PropertyToID("_BloomBicubicUpsampling"),
             bloomPrefilterId = Shader.PropertyToID("_BloomPrefilter"),
             bloomThresholdId = Shader.PropertyToID("_BloomThreshold"),
@@ -77,6 +81,12 @@ namespace LiteRP.Runtime
 
         private static Rect fullViewRect = new Rect(0f, 0f, 1f, 1f);
 
+        private Vector2Int bufferSize;
+
+        private CameraBufferSettings.BicubicRescalingMode bicubicRescaling;
+
+        private CameraBufferSettings.FXAA fxaa;
+        
         public PostFXStack()
         {
             bloomPyramidId = Shader.PropertyToID("_BloomPyramid0");
@@ -86,9 +96,13 @@ namespace LiteRP.Runtime
             }
         }
 
-        public void Setup(ScriptableRenderContext context, Camera camera, PostFXSettings settings, bool useHDR,
-            int colorLUTResolution, CameraSettings.FinalBlendMode finalBlendMode)
+        public void Setup(ScriptableRenderContext context, Camera camera, Vector2Int bufferSize, PostFXSettings settings,
+            bool useHDR, int colorLUTResolution, CameraSettings.FinalBlendMode finalBlendMode,
+            CameraBufferSettings.BicubicRescalingMode bicubicRescaling, CameraBufferSettings.FXAA fxaa)
         {
+            this.fxaa = fxaa;
+            this.bicubicRescaling = bicubicRescaling;
+            this.bufferSize = bufferSize;
             this.finalBlendMode = finalBlendMode;
             this.colorLUTResolution = colorLUTResolution;
             this.useHDR = useHDR;
@@ -115,8 +129,19 @@ namespace LiteRP.Runtime
         
         bool DoBloom(int sourceId)
         {
-            PostFXSettings.BloomSettings bloom = settings.Bloom;
-            int width = camera.pixelWidth / 2, height = camera.pixelHeight / 2;
+            BloomSettings bloom = settings.Bloom;
+            int width, height;
+            if (bloom.ignoreRenderScale)
+            {
+                width = camera.pixelWidth / 2;
+                height = camera.pixelHeight / 2;
+            }
+            else
+            {
+                width = bufferSize.x / 2;
+                height = bufferSize.y / 2;
+            }
+            
             if (bloom.maxIterations == 0 || bloom.intensity <= 0f ||
                 height < bloom.downscaleLimit * 2 || width < bloom.downscaleLimit * 2)
             {
@@ -200,7 +225,7 @@ namespace LiteRP.Runtime
             
             buffer.SetGlobalFloat(bloomIntensityId, finalIntensity);
             buffer.SetGlobalTexture(fxSource2Id, sourceId);
-            buffer.GetTemporaryRT(bloomResultId, camera.pixelWidth, camera.pixelHeight, 0,
+            buffer.GetTemporaryRT(bloomResultId, bufferSize.x, bufferSize.y, 0,
                 FilterMode.Bilinear, format);
             Draw(fromId, bloomResultId, finalPass);
             buffer.ReleaseTemporaryRT(fromId);
@@ -276,7 +301,25 @@ namespace LiteRP.Runtime
             
             buffer.SetGlobalVector(colorGradingLUTParametersId,
                 new Vector4(1f / lutWidth, 1f / lutHeight, lutHeight - 1f));
-            DrawFinal(sourceId);
+            if (bufferSize.x == camera.pixelWidth)
+            {
+                DrawFinal(sourceId, Pass.Final);
+            }
+            else
+            {
+                buffer.SetGlobalFloat(finalSrcBlendId, 1f);
+                buffer.SetGlobalFloat(finalDstBlendId, 0f);
+                buffer.GetTemporaryRT(finalResultId, bufferSize.x, bufferSize.y, 0, FilterMode.Bilinear,
+                    RenderTextureFormat.Default);
+                Draw(sourceId, finalResultId, Pass.Final);
+                bool bicubicSampling = bicubicRescaling == CameraBufferSettings.BicubicRescalingMode.UpAndDown ||
+                                       bicubicRescaling == CameraBufferSettings.BicubicRescalingMode.UpOnly &&
+                                       bufferSize.x < camera.pixelWidth;
+                buffer.SetGlobalFloat(copyBicubicId, bicubicSampling ? 1f : 0f);
+                DrawFinal(finalResultId, Pass.FinalRescale);
+                buffer.ReleaseTemporaryRT(finalResultId);
+            }
+            
             buffer.ReleaseTemporaryRT(colorGradingLUTId);
         }
 
@@ -287,7 +330,7 @@ namespace LiteRP.Runtime
             buffer.DrawProcedural(Matrix4x4.identity, settings.Material, (int)pass, MeshTopology.Triangles, 3);
         }
         
-        void DrawFinal(RenderTargetIdentifier from)
+        void DrawFinal(RenderTargetIdentifier from, Pass pass)
         {
             buffer.SetGlobalFloat(finalSrcBlendId, (float)finalBlendMode.source);
             buffer.SetGlobalFloat(finalDstBlendId, (float)finalBlendMode.destination);
@@ -296,7 +339,7 @@ namespace LiteRP.Runtime
                 finalBlendMode.destination == BlendMode.Zero && camera.rect == fullViewRect ?
                     RenderBufferLoadAction.DontCare : RenderBufferLoadAction.Load, RenderBufferStoreAction.Store);
             buffer.SetViewport(camera.pixelRect);
-            buffer.DrawProcedural(Matrix4x4.identity, settings.Material, (int)Pass.Final, MeshTopology.Triangles, 3);
+            buffer.DrawProcedural(Matrix4x4.identity, settings.Material, (int)pass, MeshTopology.Triangles, 3);
         }
     }
 }

@@ -12,7 +12,14 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 66a64029a44a5bf43b89c13500e042db, type: 3}
   m_Name: Lite Render Pipeline Asset
   m_EditorClassIdentifier: 
-  allowHDR: 1
+  cameraBuffer:
+    allowHDR: 1
+    copyColor: 1
+    copyColorReflection: 0
+    copyDepth: 1
+    copyDepthReflection: 0
+    renderScale: 1
+    bicubicRescaling: 0
   useDynamicBatching: 1
   useGPUInstancing: 1
   useSRPBatcher: 1
@@ -34,3 +41,4 @@ MonoBehaviour:
       filter: 0
   postFXSettings: {fileID: 11400000, guid: 9b99d27be5165b14fa37bfdafe96e053, type: 2}
   colorLUTResolution: 32
+  cameraRendererShader: {fileID: 4800000, guid: 7b14b2df193b41b094ed56e1069930dc, type: 3}

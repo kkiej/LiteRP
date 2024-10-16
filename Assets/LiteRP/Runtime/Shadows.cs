@@ -253,7 +253,10 @@ namespace LiteRP.Runtime
         {
             ShadowedDirectionalLight light = shadowedDirectionalLights[index];
             var shadowSettings = new ShadowDrawingSettings(cullingResults, light.visibleLightIndex,
-                BatchCullingProjectionType.Orthographic);
+                BatchCullingProjectionType.Orthographic)
+            {
+                useRenderingLayerMaskTest = true
+            };
             int cascadeCount = settings.directional.cascadeCount;
             int tileOffset = index * cascadeCount;
             Vector3 ratios = settings.directional.CascadeRatios;
@@ -355,7 +358,10 @@ namespace LiteRP.Runtime
         {
             ShadowedOtherLight light = shadowedOtherLights[index];
             var shadowSettings = new ShadowDrawingSettings(cullingResults, light.visibleLightIndex,
-                BatchCullingProjectionType.Perspective);
+                BatchCullingProjectionType.Perspective)
+            {
+                useRenderingLayerMaskTest = true
+            };
             cullingResults.ComputeSpotShadowMatricesAndCullingPrimitives(light.visibleLightIndex,
                 out Matrix4x4 viewMatrix, out Matrix4x4 projectionMatrix, out ShadowSplitData splitData);
             shadowSettings.splitData = splitData;
@@ -373,11 +379,20 @@ namespace LiteRP.Runtime
             buffer.SetGlobalDepthBias(0f, 0f);
         }
         
+        /// <summary>
+        /// 渲染点光源的阴影贴图到OtherShadowAtlas
+        /// </summary>
+        /// <param name="index"></param>
+        /// <param name="split"></param>
+        /// <param name="tileSize"></param>
         private void RenderPointShadows(int index, int split, int tileSize)
         {
             ShadowedOtherLight light = shadowedOtherLights[index];
             var shadowSettings = new ShadowDrawingSettings(cullingResults, light.visibleLightIndex,
-                BatchCullingProjectionType.Perspective);
+                BatchCullingProjectionType.Perspective)
+            {
+                useRenderingLayerMaskTest = true
+            };
             
             float texelSize = 2f / tileSize;
             float filterSize = texelSize * ((float)settings.additionalLights.filter + 1f);

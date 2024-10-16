@@ -15,6 +15,7 @@ struct Surface
 	half smoothness;
 	float fresnelStrength;
 	half dither;
+	uint renderingLayerMask;
 };
 
 #endif

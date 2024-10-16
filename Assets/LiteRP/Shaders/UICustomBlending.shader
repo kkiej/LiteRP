@@ -1,4 +1,4 @@
-Shader "Custom RP/UI Custom Blending"
+Shader "Lite RP/UI Custom Blending"
 {
 	Properties
 	{

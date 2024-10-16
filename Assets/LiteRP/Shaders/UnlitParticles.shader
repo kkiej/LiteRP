@@ -1,8 +1,21 @@
-Shader "Lite RP/Unlit"
+Shader "Lite RP/Particles/Unlit"
 {
     Properties
     {
         [HDR]_BaseColor("Color", Color) = (1.0, 1.0, 1.0, 1.0)
+        [Toggle(_VERTEX_COLORS)]_VertexColors("Vertex Colors", Float) = 0
+        [Toggle(_FLIPBOOK_BLENDING)]_FlipbookBlending("Flipbook Blending", Float) = 0
+        [Toggle(_NEAR_FADE)] _NearFade ("Near Fade", Float) = 0
+		_NearFadeDistance ("Near Fade Distance", Range(0.0, 10.0)) = 1
+		_NearFadeRange ("Near Fade Range", Range(0.01, 10.0)) = 1
+        [Toggle(_SOFT_PARTICLES)] _SoftParticles ("Soft Particles", Float) = 0
+		_SoftParticlesDistance ("Soft Particles Distance", Range(0.0, 10.0)) = 0
+		_SoftParticlesRange ("Soft Particles Range", Range(0.01, 10.0)) = 1
+        [Toggle(_DISTORTION)] _Distortion ("Distortion", Float) = 0
+		[NoScaleOffset] _DistortionMap("Distortion Vectors", 2D) = "bumb" {}
+		_DistortionStrength("Distortion Strength", Range(0.0, 0.2)) = 0.1
+        _DistortionBlend("Distortion Blend", Range(0.0, 1.0)) = 1
+        
         _Cutoff("Alpha Cutoff", Range(0.0, 1.0)) = 0.5
         [Toggle(_CLIPPING)]_Clipping("Alpha Clipping", Float) = 0
         [KeywordEnum(On, Clip, Dither, Off)]_Shadows("Shadows", FLoat) = 0
@@ -29,6 +42,11 @@ Shader "Lite RP/Unlit"
             #pragma target 3.5
             #pragma multi_compile_instancing
             #pragma shader_feature _CLIPPING
+            #pragma shader_feature _VERTEX_COLORS
+            #pragma shader_feature _FLIPBOOK_BLENDING
+            #pragma shader_feature _NEAR_FADE
+            #pragma shader_feature _SOFT_PARTICLES
+            #pragma shader_feature _DISTORTION
             
             #pragma vertex UnlitPassVertex
             #pragma fragment UnlitPassFragment
@@ -51,21 +69,6 @@ Shader "Lite RP/Unlit"
             #pragma vertex ShadowCasterPassVertex
             #pragma fragment ShadowCasterPassFragment
             #include "ShadowCasterPass.hlsl"
-            ENDHLSL
-        }
-
-        Pass
-        {
-            Name "Unlit Meta Pass"
-            Tags { "LightMode"="Meta" }
-            
-            CUll Off
-            
-            HLSLPROGRAM
-            #pragma target 3.5
-            #pragma vertex MetaPassVertex
-            #pragma fragment MetaPassFragment
-            #include "MetaPass.hlsl"
             ENDHLSL
         }
     }

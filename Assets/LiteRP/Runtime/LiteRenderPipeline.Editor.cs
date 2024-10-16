@@ -8,6 +8,8 @@ namespace LiteRP.Runtime
     public partial class LiteRenderPipeline
     {
         partial void InitializeForEditor();
+
+        partial void DisposeForEditor();
         
 #if UNITY_EDITOR
         partial void InitializeForEditor()
@@ -15,9 +17,8 @@ namespace LiteRP.Runtime
             Lightmapping.SetDelegate(lightsDelegate);
         }
 
-        protected override void Dispose(bool disposing)
+        partial void DisposeForEditor()
         {
-            base.Dispose(disposing);
             Lightmapping.ResetDelegate();
         }
 
