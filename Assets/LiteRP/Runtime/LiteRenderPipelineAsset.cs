@@ -10,13 +10,17 @@ namespace LiteRP.Runtime
         private CameraBufferSettings cameraBuffer = new CameraBufferSettings
         {
             allowHDR = true,
-            renderScale = 1f
+            renderScale = 1f,
+            fxaa = new CameraBufferSettings.FXAA
+            {
+                fixedThreshold = 0.0833f,
+                relativeThreshold = 0.166f,
+                subpixelBlending = 0.75f
+            }
         };
         
         [SerializeField]
         private bool
-            useDynamicBatching = true,
-            useGPUInstancing = true,
             useSRPBatcher = true,
             useLightsPerObject = true;
 
@@ -38,11 +42,18 @@ namespace LiteRP.Runtime
 
         [SerializeField]
         private Shader cameraRendererShader = default;
+
+        [Header("Deprecated Settings")]
+        [SerializeField, Tooltip("Dynamic batching is no longer used.")]
+        private bool useDynamicBatching;
+
+        [SerializeField, Tooltip("GPU instancing is always enabled.")]
+        private bool useGPUInstancing;
+        
         protected override RenderPipeline CreatePipeline()
         {
-            return new LiteRenderPipeline(cameraBuffer, useDynamicBatching, useGPUInstancing,
-                useSRPBatcher, useLightsPerObject, shadows, postFXSettings, (int)colorLUTResolution,
-                cameraRendererShader);
+            return new LiteRenderPipeline(cameraBuffer, useSRPBatcher, useLightsPerObject, shadows, postFXSettings,
+                (int)colorLUTResolution, cameraRendererShader);
         }
     }
 }

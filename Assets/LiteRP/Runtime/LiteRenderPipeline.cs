@@ -1,6 +1,7 @@
 ﻿using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
 
 namespace LiteRP.Runtime
 {
@@ -10,7 +11,9 @@ namespace LiteRP.Runtime
 
         private CameraBufferSettings cameraBufferSettings;
 
-        private bool useDynamicBatching, useGPUInstancing, useSRPBatcher, useLightsPerObject;
+        private readonly RenderGraph renderGraph = new("LiteRP Render Graph");
+
+        private bool useSRPBatcher, useLightsPerObject;
 
         private ShadowSettings shadowSettings;
 
@@ -18,16 +21,14 @@ namespace LiteRP.Runtime
 
         private int colorLUTResolution;
         
-        public LiteRenderPipeline(CameraBufferSettings cameraBufferSettings, bool useDynamicBatching,
-            bool useGPUInstancing, bool useSRPBatcher, bool useLightsPerObject, ShadowSettings shadowSettings,
-            PostFXSettings postFXSettings, int colorLUTResolution, Shader cameraRendererShader)
+        public LiteRenderPipeline(CameraBufferSettings cameraBufferSettings, bool useSRPBatcher,
+            bool useLightsPerObject, ShadowSettings shadowSettings, PostFXSettings postFXSettings,
+            int colorLUTResolution, Shader cameraRendererShader)
         {
             this.colorLUTResolution = colorLUTResolution;
             this.cameraBufferSettings = cameraBufferSettings;
             this.postFXSettings = postFXSettings;
             this.shadowSettings = shadowSettings;
-            this.useDynamicBatching = useDynamicBatching;
-            this.useGPUInstancing = useGPUInstancing;
             this.useLightsPerObject = useLightsPerObject;
             GraphicsSettings.useScriptableRenderPipelineBatching = useSRPBatcher;
             GraphicsSettings.lightsUseLinearIntensity = true;
@@ -44,9 +45,10 @@ namespace LiteRP.Runtime
         {
             for (int i = 0; i < cameras.Count; i++)
             {
-                renderer.Render(context, cameras[i], cameraBufferSettings, useDynamicBatching, useGPUInstancing, useLightsPerObject,
+                renderer.Render(renderGraph, context, cameras[i], cameraBufferSettings, useLightsPerObject,
                     shadowSettings, postFXSettings, colorLUTResolution);
             }
+            renderGraph.EndFrame();
         }
 
         protected override void Dispose(bool disposing)
@@ -54,6 +56,7 @@ namespace LiteRP.Runtime
             base.Dispose(disposing);
             DisposeForEditor();
             renderer.Dispose();
+            renderGraph.Cleanup();
         }
     }
 }

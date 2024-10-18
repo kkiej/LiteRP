@@ -2,18 +2,14 @@
 using UnityEngine;
 using UnityEngine.Rendering;
 using System.Runtime.InteropServices;
+using UnityEngine.Experimental.Rendering.RenderGraphModule;
 
 namespace LiteRP.Runtime
 {
     public class Lighting
     {
-        private const string BufferName = "Lighting";
-
-        private readonly CommandBuffer buffer = new CommandBuffer()
-        {
-            name = BufferName
-        };
-
+        private CommandBuffer buffer;
+        
         private const int MaxDirLightCount = 4, maxOtherLightCount = 64;
 
         private static readonly int
@@ -48,16 +44,16 @@ namespace LiteRP.Runtime
 
         private static readonly string LightsPerObjectKeyword = "_LIGHTS_PER_OBJECT";
 
-        public void Setup(ScriptableRenderContext context, CullingResults cullingResults,
+        public void Setup(RenderGraphContext context, CullingResults cullingResults,
             ShadowSettings shadowSettings, bool useLightsPerObject, int renderingLayerMask)
         {
+            buffer = context.cmd;
             this.cullingResults = cullingResults;
-            buffer.BeginSample(BufferName);
+            
             shadows.Setup(context, cullingResults, shadowSettings);
             SetupLights(useLightsPerObject, renderingLayerMask);
             shadows.Render();
-            buffer.EndSample(BufferName);
-            context.ExecuteCommandBuffer(buffer);
+            context.renderContext.ExecuteCommandBuffer(buffer);
             buffer.Clear();
         }
 

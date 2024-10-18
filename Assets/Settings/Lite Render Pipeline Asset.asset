@@ -19,22 +19,28 @@ MonoBehaviour:
     copyDepth: 1
     copyDepthReflection: 0
     renderScale: 1
-    bicubicRescaling: 0
+    bicubicRescaling: 1
+    fxaa:
+      enabled: 1
+      fixedThreshold: 0.0833
+      relativeThreshold: 0.166
+      subpixelBlending: 0.75
+      quality: 0
   useDynamicBatching: 1
   useGPUInstancing: 1
   useSRPBatcher: 1
   useLightsPerObject: 1
   shadows:
-    maxDistance: 30
+    maxDistance: 100
     distanceFade: 0.1
     directional:
-      atlasSize: 4096
-      filter: 3
+      atlasSize: 2048
+      filter: 2
       cascadeCount: 4
       cascadeRatio1: 0.1
       cascadeRatio2: 0.25
       cascadeRatio3: 0.5
-      cascadeFade: 0.279
+      cascadeFade: 0.1
       cascadeBlend: 1
     additionalLights:
       atlasSize: 1024
