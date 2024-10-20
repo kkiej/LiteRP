@@ -1,4 +1,5 @@
 ﻿using System;
+using UnityEditor;
 using UnityEngine;
 
 namespace LiteRP.Runtime
@@ -214,5 +215,16 @@ namespace LiteRP.Runtime
         public ToneMappingSettings ToneMapping => toneMapping;
 
         #endregion
+
+        public bool AreApplicableTo(Camera camera)
+        {
+#if UNITY_EDITOR
+            if (camera.cameraType == CameraType.SceneView && !SceneView.currentDrawingSceneView.sceneViewState.showImageEffects)
+            {
+                return false;
+            }
+#endif
+            return camera.cameraType <= CameraType.SceneView;
+        }
     }
 }

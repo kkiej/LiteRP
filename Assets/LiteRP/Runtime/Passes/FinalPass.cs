@@ -24,7 +24,7 @@ namespace LiteRP.Runtime
             using RenderGraphBuilder builder = renderGraph.AddRenderPass(sampler.name, out FinalPass pass, sampler);
             pass.copier = copier;
             pass.colorAttachment = builder.ReadTexture(textures.colorAttachment);
-            builder.SetRenderFunc<FinalPass>((pass, context) => pass.Render(context));
+            builder.SetRenderFunc<FinalPass>(static (pass, context) => pass.Render(context));
         }
     }
 }

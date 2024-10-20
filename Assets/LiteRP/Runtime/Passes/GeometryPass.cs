@@ -27,7 +27,8 @@ namespace LiteRP.Runtime
         }
 
         public static void Record(RenderGraph renderGraph, Camera camera, CullingResults cullingResults,
-            bool useLightsPerObject, int renderingLayerMask, bool opaque, in CameraRendererTextures textures)
+            bool useLightsPerObject, int renderingLayerMask, bool opaque, in CameraRendererTextures textures,
+            in ShadowTextures shadowTextures)
         {
             ProfilingSampler sampler = opaque ? samplerOpaque : samplerTransparent;
             
@@ -61,7 +62,11 @@ namespace LiteRP.Runtime
                     builder.ReadTexture(textures.depthCopy);
                 }
             }
-            builder.SetRenderFunc<GeometryPass>((pass, context) => pass.Render(context));
+
+            builder.ReadTexture(shadowTextures.directionalAtlas);
+            builder.ReadTexture(shadowTextures.otherAtlas);
+            
+            builder.SetRenderFunc<GeometryPass>(static (pass, context) => pass.Render(context));
         }
     }
 }

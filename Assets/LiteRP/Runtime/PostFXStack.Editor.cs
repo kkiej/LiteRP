@@ -1,10 +1,9 @@
-﻿using Palmmedia.ReportGenerator.Core;
-using UnityEditor;
+﻿using UnityEditor;
 using UnityEngine;
 
 namespace LiteRP.Runtime
 {
-    partial class PostFXStack
+    /*partial class PostFXStack
     {
         partial void ApplySceneViewState();
         
@@ -20,5 +19,5 @@ namespace LiteRP.Runtime
         }
         
 #endif
-    }
+    }*/
 }

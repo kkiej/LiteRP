@@ -16,31 +16,31 @@ namespace LiteRP.Runtime
 
         private ShadowSettings settings;
 
-        private static string[] directionalFilterKeywords =
+        private static GlobalKeyword[] directionalFilterKeywords =
         {
-            "_DIRECTIONAL_PCF3",
-            "_DIRECTIONAL_PCF5",
-            "_DIRECTIONAL_PCF7",
+            GlobalKeyword.Create("_DIRECTIONAL_PCF3"),
+            GlobalKeyword.Create("_DIRECTIONAL_PCF5"),
+            GlobalKeyword.Create("_DIRECTIONAL_PCF7"),
+        };
+        
+        private static GlobalKeyword[] otherFilterKeywords =
+        {
+            GlobalKeyword.Create("_OTHER_PCF3"),
+            GlobalKeyword.Create("_OTHER_PCF5"),
+            GlobalKeyword.Create("_OTHER_PCF7")
         };
         
         //级联阴影混合方式关键字
-        private static string[] cascadeBlendKeywords =
+        private static GlobalKeyword[] cascadeBlendKeywords =
         {
-            "_CASCADE_BLEND_SOFT",
-            "_CASCADE_BLEND_DITHER",
+            GlobalKeyword.Create("_CASCADE_BLEND_SOFT"),
+            GlobalKeyword.Create("_CASCADE_BLEND_DITHER")
         };
 
-        private static string[] shadowMaskKeywords =
+        private static GlobalKeyword[] shadowMaskKeywords =
         {
-            "_SHADOW_MASK_ALWAYS",
-            "_SHADOW_MASK_DISTANCE"
-        };
-
-        private static string[] otherFilterKeywords =
-        {
-            "_OTHER_PCF3",
-            "_OTHER_PCF5",
-            "_OTHER_PCF7"
+            GlobalKeyword.Create("_SHADOW_MASK_ALWAYS"),
+            GlobalKeyword.Create("_SHADOW_MASK_DISTANCE")
         };
         
         struct ShadowedDirectionalLight
@@ -94,10 +94,8 @@ namespace LiteRP.Runtime
 
         private TextureHandle directionalAtlas, otherAtlas;
 
-        public void Setup(RenderGraphContext context, CullingResults cullingResults, ShadowSettings settings)
+        public void Setup(CullingResults cullingResults, ShadowSettings settings)
         {
-            buffer = context.cmd;
-            this.context = context.renderContext;
             this.cullingResults = cullingResults;
             this.settings = settings;
             shadowedDirLightCount = shadowedOtherLightCount = 0;
@@ -182,26 +180,22 @@ namespace LiteRP.Runtime
             return data;
         }
         
-        public void Render()
+        public void Render(RenderGraphContext context)
         {
+            buffer = context.cmd;
+            this.context = context.renderContext;
             if (shadowedDirLightCount > 0)
             {
                 RenderDirectionalShadows();
-            }
-            else
-            {
-                buffer.GetTemporaryRT(dirShadowAtlasId, 1, 1, 32,
-                    FilterMode.Bilinear, RenderTextureFormat.Shadowmap);
             }
 
             if (shadowedOtherLightCount > 0)
             {
                 RenderOtherShadows();
             }
-            else
-            {
-                buffer.SetGlobalTexture(otherShadowAtlasId, dirShadowAtlasId);
-            }
+            
+            buffer.SetGlobalTexture(dirShadowAtlasId, directionalAtlas);
+            buffer.SetGlobalTexture(otherShadowAtlasId, otherAtlas);
             
             SetKeywords(shadowMaskKeywords, useShadowMask ?
                 QualitySettings.shadowmaskMode == ShadowmaskMode.Shadowmask ? 0 : 1 : -1);
@@ -220,9 +214,8 @@ namespace LiteRP.Runtime
             int atlasSize = (int)settings.directional.atlasSize;
             atlasSizes.x = atlasSize;
             atlasSizes.y = 1f / atlasSize;
-            buffer.GetTemporaryRT(dirShadowAtlasId, atlasSize, atlasSize, 32,
-                FilterMode.Bilinear, RenderTextureFormat.Shadowmap);
-            buffer.SetRenderTarget(dirShadowAtlasId,
+            
+            buffer.SetRenderTarget(directionalAtlas,
                 RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             buffer.ClearRenderTarget(true, false, Color.clear);
             buffer.SetGlobalFloat(shadowPancakingId, 1f);
@@ -297,9 +290,8 @@ namespace LiteRP.Runtime
             int atlasSize = (int)settings.additionalLights.atlasSize;
             atlasSizes.z = atlasSize;
             atlasSizes.w = 1f / atlasSize;
-            buffer.GetTemporaryRT(otherShadowAtlasId, atlasSize, atlasSize, 32,
-                FilterMode.Bilinear, RenderTextureFormat.Shadowmap);
-            buffer.SetRenderTarget(otherShadowAtlasId,
+            
+            buffer.SetRenderTarget(otherAtlas,
                 RenderBufferLoadAction.DontCare, RenderBufferStoreAction.Store);
             buffer.ClearRenderTarget(true, false, Color.clear);
             buffer.SetGlobalFloat(shadowPancakingId, 0f);
@@ -331,18 +323,11 @@ namespace LiteRP.Runtime
             ExecuteBuffer();
         }
 
-        private void SetKeywords(string[] keywords, int enabledIndex)
+        private void SetKeywords(GlobalKeyword[] keywords, int enabledIndex)
         {
             for (int i = 0; i < keywords.Length; i++)
             {
-                if (i == enabledIndex)
-                {
-                    buffer.EnableShaderKeyword(keywords[i]);
-                }
-                else
-                {
-                    buffer.DisableShaderKeyword(keywords[i]);
-                }
+                buffer.SetKeyword(keywords[i], i == enabledIndex);
             }
         }
 
@@ -461,22 +446,13 @@ namespace LiteRP.Runtime
             return m;
         }
         
-        public void Cleanup()
-        {
-            buffer.ReleaseTemporaryRT(dirShadowAtlasId);
-            if (shadowedOtherLightCount > 0)
-            {
-                buffer.ReleaseTemporaryRT(otherShadowAtlasId);
-            }
-            ExecuteBuffer();
-        }
-        
         public ShadowTextures GetRenderTextures(RenderGraph renderGraph, RenderGraphBuilder builder)
         {
             int atlasSize = (int)settings.directional.atlasSize;
             var desc = new TextureDesc(atlasSize, atlasSize)
             {
                 depthBufferBits = DepthBits.Depth32,
+                isShadowMap = true,
                 name = "Directional Shadow Atlas"
             };
             directionalAtlas = shadowedDirLightCount > 0 ?

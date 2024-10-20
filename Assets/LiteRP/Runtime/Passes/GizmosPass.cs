@@ -45,7 +45,7 @@ namespace LiteRP.Runtime
                 {
                     pass.depthAttachment = builder.ReadTexture(textures.depthAttachment);
                 }
-                builder.SetRenderFunc<GizmosPass>((pass, context) => pass.Render(context));
+                builder.SetRenderFunc<GizmosPass>(static (pass, context) => pass.Render(context));
             }
 #endif
         }
