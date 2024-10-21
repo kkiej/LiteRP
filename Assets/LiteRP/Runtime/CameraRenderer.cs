@@ -14,14 +14,25 @@ namespace LiteRP.Runtime
 
         //public const float renderScaleMin = 0.1f, renderScaleMax = 2f;
         
-        public CameraRenderer(Shader shader) => material = CoreUtils.CreateEngineMaterial(shader);
-
-        public void Dispose() => CoreUtils.Destroy(material);
-        
-        public void Render(RenderGraph renderGraph, ScriptableRenderContext context, Camera camera,
-            CameraBufferSettings bufferSettings, bool useLightsPerObject, ShadowSettings shadowSettings,
-             PostFXSettings postFXSettings, int colorLUTResolution)
+        public CameraRenderer(Shader shader, Shader cameraDebuggerShader)
         {
+            material = CoreUtils.CreateEngineMaterial(shader);
+            CameraDebugger.Initialize(cameraDebuggerShader);
+        }
+
+        public void Dispose()
+        {
+            CoreUtils.Destroy(material);
+            CameraDebugger.Cleanup();
+        }
+
+        public void Render(RenderGraph renderGraph, ScriptableRenderContext context, Camera camera,
+            LiteRenderPipelineSettings settings)
+        {
+            CameraBufferSettings bufferSettings = settings.cameraBuffer;
+            PostFXSettings postFXSettings = settings.postFXSettings;
+            ShadowSettings shadowSettings = settings.shadows;
+            
             ProfilingSampler cameraSampler;
             CameraSettings cameraSettings;
             if (camera.TryGetComponent(out LiteRenderPipelineCamera liteRPCamera))
@@ -89,8 +100,8 @@ namespace LiteRP.Runtime
             
             //bufferSettings.fxaa.enabled &= cameraSettings.allowFXAA;
             bufferSettings.fxaa.enabled = cameraSettings.allowFXAA;
-            
-            bool useIntermediateBuffer = useScaledRendering || useColorTexture || useDepthTexture || hasActivePostFX;
+
+            bool useIntermediateBuffer = true;
 
             var renderGraphParameters = new RenderGraphParameters()
             {
@@ -104,21 +115,22 @@ namespace LiteRP.Runtime
             using (renderGraph.RecordAndExecute(renderGraphParameters))
             {
                 using var _ = new RenderGraphProfilingScope(renderGraph, cameraSampler);
-                ShadowTextures shadowTextures = LightingPass.Record(renderGraph, cullingResults, shadowSettings,
-                    useLightsPerObject, cameraSettings.maskLights ? cameraSettings.renderingLayerMask : -1);
+                LightResources lightResources = LightingPass.Record(renderGraph, cullingResults, bufferSize,
+                    settings.forwardPlus, shadowSettings, cameraSettings.maskLights ?
+                        cameraSettings.renderingLayerMask : -1);
                 CameraRendererTextures textures = SetupPass.Record(renderGraph, useIntermediateBuffer, useColorTexture,
                     useDepthTexture, bufferSettings.allowHDR, bufferSize, camera);
 
-                GeometryPass.Record(renderGraph, camera, cullingResults, useLightsPerObject,
-                    cameraSettings.renderingLayerMask, true, textures, shadowTextures);
+                GeometryPass.Record(renderGraph, camera, cullingResults, cameraSettings.renderingLayerMask, true,
+                    textures, lightResources);
                 
                 SkyboxPass.Record(renderGraph, camera, textures);
 
                 var copier = new CameraRendererCopier(material, camera, cameraSettings.finalBlendMode);
                 CopyAttachmentsPass.Record(renderGraph, useColorTexture, useDepthTexture, copier, textures);
-                
-                GeometryPass.Record(renderGraph, camera, cullingResults, useLightsPerObject,
-                    cameraSettings.renderingLayerMask, false, textures, shadowTextures);
+
+                GeometryPass.Record(renderGraph, camera, cullingResults, cameraSettings.renderingLayerMask, false,
+                    textures, lightResources);
                 
                 UnsupportedShadersPass.Record(renderGraph, camera, cullingResults);
                 
@@ -129,12 +141,13 @@ namespace LiteRP.Runtime
                     postFXStack.Camera = camera;
                     postFXStack.FinalBlendMode = cameraSettings.finalBlendMode;
                     postFXStack.Settings = postFXSettings;
-                    PostFXPass.Record(renderGraph, postFXStack, colorLUTResolution, cameraSettings.keepAlpha, textures);
+                    PostFXPass.Record(renderGraph, postFXStack, (int)settings.colorLUTResolution, cameraSettings.keepAlpha, textures);
                 }
                 else if (useIntermediateBuffer)
                 {
                     FinalPass.Record(renderGraph, copier, textures);
                 }
+                DebugPass.Record(renderGraph, settings, camera, lightResources);
                 GizmosPass.Record(renderGraph, useIntermediateBuffer, copier, textures);
             }
             

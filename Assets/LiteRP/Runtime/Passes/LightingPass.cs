@@ -1,8 +1,12 @@
 ﻿using System.Runtime.InteropServices;
 using Unity.Collections;
+using Unity.Jobs;
+using Unity.Mathematics;
 using UnityEngine;
 using UnityEngine.Experimental.Rendering.RenderGraphModule;
 using UnityEngine.Rendering;
+
+using static Unity.Mathematics.math;
 
 namespace LiteRP.Runtime
 {
@@ -10,62 +14,84 @@ namespace LiteRP.Runtime
     {
         private static readonly ProfilingSampler sampler = new("Light And Shadow Pass");
         
-        private const int MaxDirLightCount = 4, maxOtherLightCount = 64;
+        private const int
+            maxDirectionalLightCount = 4,
+            maxOtherLightCount = 128;
 
         private static readonly int
-            //方向光的属性名
             DirLightCountId = Shader.PropertyToID("_DirectionalLightCount"),
-            DirLightColorsId = Shader.PropertyToID("_DirectionalLightColors"),
-            dirLightDirectionsAndMasksID = Shader.PropertyToID("_DirectionalLightDirectionsAndMasks"),
-            DirLightShadowDataId = Shader.PropertyToID("_DirectionalLightShadowData"),
-            //其它光的属性名
+            directionalLightDataId = Shader.PropertyToID("_DirectionalLightData"),
             otherLightCountId = Shader.PropertyToID("_OtherLightCount"),
-            otherLightColorsId = Shader.PropertyToID("_OtherLightColors"),
-            otherLightPositionsId = Shader.PropertyToID("_OtherLightPositions"),
-            otherLightDirectionsAndMasksId = Shader.PropertyToID("_OtherLightDirectionsAndMasks"),
-            otherLightSpotAnglesId = Shader.PropertyToID("_OtherLightSpotAngles"),
-            otherLightShadowDataId = Shader.PropertyToID("_OtherLightShadowData");
-
-        private static readonly Vector4[]
-            //方向光属性数组
-            dirLightColors = new Vector4[MaxDirLightCount],
-            dirLightDirectionsAndMasks = new Vector4[MaxDirLightCount],
-            dirLightShadowData = new Vector4[MaxDirLightCount];
-
+            otherLightDataId = Shader.PropertyToID("_OtherLightData"),
+            tilesId = Shader.PropertyToID("_ForwardPlusTiles"),
+            tileSettingsId = Shader.PropertyToID("_ForwardPlusTileSettings");
+        
+        private static readonly DirectionalLightData[] directionalLightData =
+            new DirectionalLightData[maxDirectionalLightCount];
+        
         private static readonly OtherLightData[] otherLightData = new OtherLightData[maxOtherLightCount];
+
+        private ComputeBufferHandle directionalLightDataBuffer, otherLightDataBuffer, tilesBuffer;
 
         private CullingResults cullingResults;
 
         private readonly Shadows shadows = new Shadows();
 
-        private static readonly GlobalKeyword LightsPerObjectKeyword = GlobalKeyword.Create("_LIGHTS_PER_OBJECT");
+        private int directionalLightCount, otherLightCount;
 
-        private int dirLightCount, otherLightCount;
+        private NativeArray<float4> lightBounds;
 
-        private bool useLightsPerObject;
+        private NativeArray<int> tileData;
+
+        private JobHandle forwardPlusJobHandle;
         
-        public void Setup(CullingResults cullingResults, ShadowSettings shadowSettings, bool useLightsPerObject,
-            int renderingLayerMask)
+        private Vector2 screenUVToTileCoordinates;
+
+        private Vector2Int tileCount;
+        
+        private int maxLightsPerTile, tileDataSize, maxTileDataSize;
+        
+        private int TileCount => 1;
+        
+        public void Setup(CullingResults cullingResults, Vector2Int attachmentSize, ForwardPlusSettings forwardPlusSettings,
+            ShadowSettings shadowSettings, int renderingLayerMask)
         {
             this.cullingResults = cullingResults;
-            this.useLightsPerObject = useLightsPerObject;
             shadows.Setup(cullingResults, shadowSettings);
+            
+            maxLightsPerTile = forwardPlusSettings.maxLightsPerTile <= 0 ? 31 : forwardPlusSettings.maxLightsPerTile;
+            maxTileDataSize = maxLightsPerTile + 1;
+            
+            lightBounds = new NativeArray<float4>(maxOtherLightCount, Allocator.TempJob,
+                NativeArrayOptions.UninitializedMemory);
+            float tileScreenPixelSize =
+                forwardPlusSettings.tileSize <= 0 ? 64f : (float)forwardPlusSettings.tileSize;
+            screenUVToTileCoordinates.x = attachmentSize.x / tileScreenPixelSize;
+            screenUVToTileCoordinates.y = attachmentSize.y / tileScreenPixelSize;
+            tileCount.x = Mathf.CeilToInt(screenUVToTileCoordinates.x);
+            tileCount.y = Mathf.CeilToInt(screenUVToTileCoordinates.y);
+            
             SetupLights(renderingLayerMask);
         }
 
+        void SetupForwardPlus(int lightIndex, ref VisibleLight visibleLight)
+        {
+            Rect r = visibleLight.screenRect;
+            lightBounds[lightIndex] = float4(r.xMin, r.yMin, r.xMax, r.yMax);
+        }
+        
         private void SetupLights(int renderingLayerMask)
         {
-            //从剔除结果检索灯光索引图
-            NativeArray<int> indexMap = useLightsPerObject ?
-                cullingResults.GetLightIndexMap(Allocator.Temp) : default;
             //从剔除结果获取可见光
             NativeArray<VisibleLight> visibleLights = cullingResults.visibleLights;
+            
+            int requiredMaxLightsPerTile = Mathf.Min(maxLightsPerTile, visibleLights.Length);
+            tileDataSize = requiredMaxLightsPerTile + 1;
 
-            dirLightCount = otherLightCount = 0;
+            directionalLightCount = otherLightCount = 0;
             int i;
             for (i = 0; i < visibleLights.Length; i++)
             {
-                int newIndex = -1;
                 VisibleLight visibleLight = visibleLights[i];
                 Light light = visibleLight.light;
                 if ((light.renderingLayerMask & renderingLayerMask) != 0)
@@ -73,15 +99,17 @@ namespace LiteRP.Runtime
                     switch (visibleLight.lightType)
                     {
                         case LightType.Directional:
-                            if (dirLightCount < MaxDirLightCount)
+                            if (directionalLightCount < maxDirectionalLightCount)
                             {
-                                SetupDirectionalLight(dirLightCount++, i, ref visibleLight, light);
+                                directionalLightData[directionalLightCount++] =
+                                    new DirectionalLightData(ref visibleLight, light,
+                                        shadows.ReserveDirectionalShadows(light, i));
                             }
                             break;
                         case LightType.Point:
                             if (otherLightCount < maxOtherLightCount)
                             {
-                                newIndex = otherLightCount;
+                                SetupForwardPlus(otherLightCount, ref visibleLight);
                                 otherLightData[otherLightCount++] = OtherLightData.CreatePointLight(ref visibleLight,
                                     light, shadows.ReserveOtherShadows(light, i));
                             }
@@ -89,109 +117,86 @@ namespace LiteRP.Runtime
                         case LightType.Spot:
                             if (otherLightCount < maxOtherLightCount)
                             {
-                                newIndex = otherLightCount;
-                                SetupSpotLight(otherLightCount++, i, ref visibleLight, light);
+                                SetupForwardPlus(otherLightCount, ref visibleLight);
+                                otherLightData[otherLightCount++] = OtherLightData.CreateSpotLight(ref visibleLight,
+                                    light, shadows.ReserveOtherShadows(light, i));
                             }
                             break;
                     }
                 }
-
-                if (useLightsPerObject)
-                {
-                    indexMap[i] = newIndex;
-                }
             }
             
-            if (useLightsPerObject)
+            
+            tileData = new NativeArray<int>(TileCount * tileDataSize, Allocator.TempJob);
+            forwardPlusJobHandle = new ForwardPlusTilesJob
             {
-                //归零其他不可见光源
-                for (; i < indexMap.Length; i++)
-                {
-                    indexMap[i] = -1;
-                }
-                //将重映射后的每物体光源索引告诉Unity
-                cullingResults.SetLightIndexMap(indexMap);
-                //释放indexMap内存
-                indexMap.Dispose();
-            }
+                lightBounds = lightBounds,
+                tileData = tileData,
+                otherLightCount = otherLightCount,
+                tileScreenUVSize = float2(1f / screenUVToTileCoordinates.x, 1f / screenUVToTileCoordinates.y),
+                maxLightsPerTile = requiredMaxLightsPerTile,
+                tilesPerRow = tileCount.x,
+                tileDataSize = tileDataSize
+            }.ScheduleParallel(TileCount, tileCount.x, default);
         }
 
         private void Render(RenderGraphContext context)
         {
             CommandBuffer buffer = context.cmd;
-            buffer.SetKeyword(LightsPerObjectKeyword, useLightsPerObject);
-            buffer.SetGlobalInt(DirLightCountId, dirLightCount);
-            if (dirLightCount > 0)
-            {
-                buffer.SetGlobalVectorArray(DirLightColorsId, dirLightColors);
-                buffer.SetGlobalVectorArray(dirLightDirectionsAndMasksID, dirLightDirectionsAndMasks);
-                buffer.SetGlobalVectorArray(DirLightShadowDataId, dirLightShadowData);
-            }
+            buffer.SetGlobalInt(DirLightCountId, directionalLightCount);
+            buffer.SetBufferData(directionalLightDataBuffer, directionalLightData, 0, 0, directionalLightCount);
+            buffer.SetGlobalBuffer(directionalLightDataId, directionalLightDataBuffer);
             
             buffer.SetGlobalInt(otherLightCountId, otherLightCount);
-            if (otherLightCount > 0)
-            {
-                buffer.SetGlobalVectorArray(otherLightColorsId, otherLightColors);
-                buffer.SetGlobalVectorArray(otherLightPositionsId, otherLightPositions);
-                buffer.SetGlobalVectorArray(otherLightDirectionsAndMasksId, otherLightDirectionsAndMasks);
-                buffer.SetGlobalVectorArray(otherLightSpotAnglesId, otherLightSpotAngles);
-                buffer.SetGlobalVectorArray(otherLightShadowDataId, otherLightShadowData);
-            }
+            buffer.SetBufferData(otherLightDataBuffer, otherLightData, 0, 0, otherLightCount);
+            buffer.SetGlobalBuffer(otherLightDataId, otherLightDataBuffer);
             
             shadows.Render(context);
+            
+            forwardPlusJobHandle.Complete();
+            buffer.SetBufferData(tilesBuffer, tileData, 0, 0, tileData.Length);
+            buffer.SetGlobalBuffer(tilesId, tilesBuffer);
+            buffer.SetGlobalVector(tileSettingsId,
+                new Vector4(screenUVToTileCoordinates.x, screenUVToTileCoordinates.y, tileCount.x.ReinterpretAsFloat(),
+                    tileDataSize.ReinterpretAsFloat()));
             context.renderContext.ExecuteCommandBuffer(buffer);
             buffer.Clear();
+            lightBounds.Dispose();
+            tileData.Dispose();
         }
 
-        private void SetupDirectionalLight(int index, int visibleIndex, ref VisibleLight visibleLight, Light light)
-        {
-            dirLightColors[index] = visibleLight.finalColor;
-            Vector4 dirAndMask = -visibleLight.localToWorldMatrix.GetColumn(2);
-            dirAndMask.w = light.renderingLayerMask.ReinterpretAsFloat();
-            dirLightDirectionsAndMasks[index] = dirAndMask;
-            dirLightShadowData[index] = shadows.ReserveDirectionalShadows(light, visibleIndex);
-        }
-
-        private void SetupSpotLight(int index, int visibleIndex, ref VisibleLight visibleLight, Light light)
-        {
-            otherLightColors[index] = visibleLight.finalColor;
-            Vector4 position = visibleLight.localToWorldMatrix.GetColumn(3);
-            position.w = 1f / Mathf.Max(visibleLight.range * visibleLight.range, 0.00001f);
-            otherLightPositions[index] = position;
-            Vector4 dirAndMask = -visibleLight.localToWorldMatrix.GetColumn(2);
-            dirAndMask.w = light.renderingLayerMask.ReinterpretAsFloat();
-            otherLightDirectionsAndMasks[index] = dirAndMask;
-            
-            float innerCos = Mathf.Cos(Mathf.Deg2Rad * 0.5f * light.innerSpotAngle);
-            float outerCos = Mathf.Cos(Mathf.Deg2Rad * 0.5f * visibleLight.spotAngle);
-            float angleRangeInv = 1f / Mathf.Max(innerCos - outerCos, 0.001f);
-            otherLightSpotAngles[index] = new Vector4(angleRangeInv, -outerCos * angleRangeInv);
-            otherLightShadowData[index] = shadows.ReserveOtherShadows(light, visibleIndex);
-        }
-        
-        private void SetupPointLight(int index, int visibleIndex, ref VisibleLight visibleLight, Light light)
-        {
-            otherLightColors[index] = visibleLight.finalColor;
-            Vector4 position = visibleLight.localToWorldMatrix.GetColumn(3);
-            position.w = 1f / Mathf.Max(visibleLight.range * visibleLight.range, 0.00001f);
-            otherLightPositions[index] = position;
-
-            otherLightSpotAngles[index] = new Vector4(0f, 1f);
-
-            Vector4 dirAndMask = Vector4.zero;
-            dirAndMask.w = light.renderingLayerMask.ReinterpretAsFloat();
-            otherLightDirectionsAndMasks[index] = dirAndMask;
-            otherLightShadowData[index] = shadows.ReserveOtherShadows(light, visibleIndex);
-        }
-        
-        public static ShadowTextures Record(RenderGraph renderGraph, CullingResults cullingResults,
-            ShadowSettings shadowSettings, bool useLightsPerObject, int renderingLayerMask)
+        public static LightResources Record(RenderGraph renderGraph, CullingResults cullingResults,
+            Vector2Int attachmentSize, ForwardPlusSettings forwardPlusSettings, ShadowSettings shadowSettings, int renderingLayerMask)
         {
             using RenderGraphBuilder builder = renderGraph.AddRenderPass(sampler.name, out LightingPass pass, sampler);
-            pass.Setup(cullingResults, shadowSettings, useLightsPerObject, renderingLayerMask);
+            pass.Setup(cullingResults, attachmentSize, forwardPlusSettings, shadowSettings, renderingLayerMask);
+            pass.directionalLightDataBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
+                new ComputeBufferDesc
+                {
+                    name = "Directional Light Data",
+                    count = maxDirectionalLightCount,
+                    stride = DirectionalLightData.stride
+                }));
+            
+            pass.otherLightDataBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
+                new ComputeBufferDesc
+                {
+                    name = "Other Light Data",
+                    count = maxOtherLightCount,
+                    stride = OtherLightData.stride
+                }));
+            
+            pass.tilesBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(new ComputeBufferDesc
+            {
+                name = "Forward+ Tiles",
+                count = pass.TileCount + pass.maxTileDataSize,
+                stride = 4
+            }));
+            
             builder.SetRenderFunc<LightingPass>(static (pass, context) => pass.Render(context));
             builder.AllowPassCulling(false);
-            return pass.shadows.GetRenderTextures(renderGraph, builder);
+            return new LightResources(pass.directionalLightDataBuffer, pass.otherLightDataBuffer, pass.tilesBuffer, 
+                pass.shadows.GetResources(renderGraph, builder));
         }
     }
     

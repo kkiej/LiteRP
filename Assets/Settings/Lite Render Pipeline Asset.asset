@@ -12,6 +12,47 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 66a64029a44a5bf43b89c13500e042db, type: 3}
   m_Name: Lite Render Pipeline Asset
   m_EditorClassIdentifier: 
+  settings:
+    cameraBuffer:
+      allowHDR: 1
+      copyColor: 1
+      copyColorReflection: 0
+      copyDepth: 1
+      copyDepthReflection: 0
+      renderScale: 1
+      bicubicRescaling: 1
+      fxaa:
+        enabled: 1
+        fixedThreshold: 0.0833
+        relativeThreshold: 0.166
+        subpixelBlending: 0.75
+        quality: 0
+    useSRPBatcher: 1
+    useLightsPerObject: 0
+    forwardPlus:
+      tileSize: 0
+      maxLightsPerTile: 0
+    shadows:
+      maxDistance: 100
+      distanceFade: 0.1
+      filterQuality: 1
+      directional:
+        atlasSize: 2048
+        cascadeCount: 4
+        cascadeRatio1: 0.1
+        cascadeRatio2: 0.25
+        cascadeRatio3: 0.5
+        cascadeFade: 0.1
+        softCascadeBlend: 0
+        cascadeBlend: 1
+        filter: 2
+      additionalLights:
+        atlasSize: 1024
+        filter: 0
+    postFXSettings: {fileID: 11400000, guid: 9b99d27be5165b14fa37bfdafe96e053, type: 2}
+    colorLUTResolution: 32
+    cameraRendererShader: {fileID: 4800000, guid: 7b14b2df193b41b094ed56e1069930dc, type: 3}
+    cameraDebuggerShader: {fileID: 4800000, guid: 719f7e736f084dc88d2590c72a615b1f, type: 3}
   cameraBuffer:
     allowHDR: 1
     copyColor: 1
@@ -21,30 +62,30 @@ MonoBehaviour:
     renderScale: 1
     bicubicRescaling: 1
     fxaa:
-      enabled: 1
+      enabled: 0
       fixedThreshold: 0.0833
       relativeThreshold: 0.166
       subpixelBlending: 0.75
       quality: 0
-  useDynamicBatching: 1
-  useGPUInstancing: 1
   useSRPBatcher: 1
   useLightsPerObject: 1
   shadows:
     maxDistance: 100
     distanceFade: 0.1
+    filterQuality: 1
     directional:
       atlasSize: 2048
-      filter: 2
       cascadeCount: 4
       cascadeRatio1: 0.1
       cascadeRatio2: 0.25
       cascadeRatio3: 0.5
       cascadeFade: 0.1
+      softCascadeBlend: 0
       cascadeBlend: 1
+      filter: 2
     additionalLights:
       atlasSize: 1024
       filter: 0
-  postFXSettings: {fileID: 11400000, guid: 9b99d27be5165b14fa37bfdafe96e053, type: 2}
+  postFXSettings: {fileID: 0}
   colorLUTResolution: 32
-  cameraRendererShader: {fileID: 4800000, guid: 7b14b2df193b41b094ed56e1069930dc, type: 3}
+  cameraRendererShader: {fileID: 0}

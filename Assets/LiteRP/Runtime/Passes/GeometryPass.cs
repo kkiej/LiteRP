@@ -27,8 +27,7 @@ namespace LiteRP.Runtime
         }
 
         public static void Record(RenderGraph renderGraph, Camera camera, CullingResults cullingResults,
-            bool useLightsPerObject, int renderingLayerMask, bool opaque, in CameraRendererTextures textures,
-            in ShadowTextures shadowTextures)
+            int renderingLayerMask, bool opaque, in CameraRendererTextures textures, in LightResources lightData)
         {
             ProfilingSampler sampler = opaque ? samplerOpaque : samplerTransparent;
             
@@ -41,9 +40,7 @@ namespace LiteRP.Runtime
                     rendererConfiguration = PerObjectData.ReflectionProbes | PerObjectData.Lightmaps |
                                             PerObjectData.ShadowMask | PerObjectData.LightProbe |
                                             PerObjectData.OcclusionProbe | PerObjectData.LightProbeProxyVolume |
-                                            PerObjectData.OcclusionProbeProxyVolume | (useLightsPerObject ?
-                                                PerObjectData.LightData | PerObjectData.LightIndices :
-                                                PerObjectData.None),
+                                            PerObjectData.OcclusionProbeProxyVolume,
                     renderQueueRange = opaque ? RenderQueueRange.opaque : RenderQueueRange.transparent,
                     renderingLayerMask = (uint)renderingLayerMask
                 }));
@@ -63,8 +60,17 @@ namespace LiteRP.Runtime
                 }
             }
 
-            builder.ReadTexture(shadowTextures.directionalAtlas);
-            builder.ReadTexture(shadowTextures.otherAtlas);
+            builder.ReadComputeBuffer(lightData.directionalLightDataBuffer);
+            builder.ReadComputeBuffer(lightData.otherLightDataBuffer);
+            if (lightData.tilesBuffer.IsValid())
+            {
+                builder.ReadComputeBuffer(lightData.tilesBuffer);
+            }
+            builder.ReadTexture(lightData.shadowResources.directionalAtlas);
+            builder.ReadTexture(lightData.shadowResources.otherAtlas);
+            builder.ReadComputeBuffer(lightData.shadowResources.directionalShadowCascadesBuffer);
+            builder.ReadComputeBuffer(lightData.shadowResources.directionalShadowMatricesBuffer);
+            builder.ReadComputeBuffer(lightData.shadowResources.otherShadowDataBuffer);
             
             builder.SetRenderFunc<GeometryPass>(static (pass, context) => pass.Render(context));
         }

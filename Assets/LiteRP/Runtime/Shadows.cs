@@ -4,7 +4,7 @@ using UnityEngine.Rendering;
 
 namespace LiteRP.Runtime
 {
-    public class Shadows
+    public partial class Shadows
     {
         private const int maxShadowedDirectionalLightCount = 4, maxShadowedOtherLightCount = 16, maxCascades = 4;
 
@@ -16,26 +16,15 @@ namespace LiteRP.Runtime
 
         private ShadowSettings settings;
 
-        private static GlobalKeyword[] directionalFilterKeywords =
+        private static readonly GlobalKeyword[] filterQualityKeywords =
         {
-            GlobalKeyword.Create("_DIRECTIONAL_PCF3"),
-            GlobalKeyword.Create("_DIRECTIONAL_PCF5"),
-            GlobalKeyword.Create("_DIRECTIONAL_PCF7"),
-        };
-        
-        private static GlobalKeyword[] otherFilterKeywords =
-        {
-            GlobalKeyword.Create("_OTHER_PCF3"),
-            GlobalKeyword.Create("_OTHER_PCF5"),
-            GlobalKeyword.Create("_OTHER_PCF7")
+            GlobalKeyword.Create("_SHADOW_FILTER_MEDIUM"),
+            GlobalKeyword.Create("_SHADOW_FILTER_HIGH")
         };
         
         //级联阴影混合方式关键字
-        private static GlobalKeyword[] cascadeBlendKeywords =
-        {
-            GlobalKeyword.Create("_CASCADE_BLEND_SOFT"),
-            GlobalKeyword.Create("_CASCADE_BLEND_DITHER")
-        };
+        private static readonly GlobalKeyword softCascadeBlendKeyword =
+            GlobalKeyword.Create("_SOFT_CASCADE_BLEND");
 
         private static GlobalKeyword[] shadowMaskKeywords =
         {
@@ -64,35 +53,37 @@ namespace LiteRP.Runtime
         private ShadowedOtherLight[] shadowedOtherLights = new ShadowedOtherLight[maxShadowedOtherLightCount];
         
         private int shadowedDirLightCount, shadowedOtherLightCount;
-        
+
         private static int
             dirShadowAtlasId = Shader.PropertyToID("_DirectionalShadowAtlas"),
+            directionalShadowCascadesId = Shader.PropertyToID("_DirectionalShadowCascades"),
             dirShadowMatricesId = Shader.PropertyToID("_DirectionalShadowMatrices"),
             otherShadowAtlasId = Shader.PropertyToID("_OtherShadowAtlas"),
-            otherShadowMatricesId = Shader.PropertyToID("_OtherShadowMatrices"),
-            otherShadowTilesId = Shader.PropertyToID("_OtherShadowTiles"),
+            otherShadowDataId = Shader.PropertyToID("_OtherShadowData"),
             cascadeCountId = Shader.PropertyToID("_CascadeCount"),
-            cascadeCullingSpheresId = Shader.PropertyToID("_CascadeCullingSpheres"),
-            cascadeDataId = Shader.PropertyToID("_CascadeData"),
             shadowAtlasSizeId = Shader.PropertyToID("_ShadowAtlasSize"),
             shadowDistanceFadeId = Shader.PropertyToID("_ShadowDistanceFade"),
             shadowPancakingId = Shader.PropertyToID("_ShadowPancaking");
 
-        private static Vector4[]
-            cascadeCullingSpheres = new Vector4[maxCascades],//每个级联的Culling Sphere信息（xyz为球心坐标，w为半径）
-            cascadeData = new Vector4[maxCascades],
-            otherShadowTiles = new Vector4[maxShadowedOtherLightCount];
+        private static readonly DirectionalShadowCascade[] directionalShadowCascades =
+            new DirectionalShadowCascade[maxCascades];
         
         //将世界坐标转换到阴影贴图上的像素坐标的变换矩阵
-        private static Matrix4x4[]
-            dirShadowMatrices = new Matrix4x4[maxShadowedDirectionalLightCount * maxCascades],
-            otherShadowMatrices = new Matrix4x4[maxShadowedOtherLightCount];
+        private static Matrix4x4[] directionalShadowMatrices =
+            new Matrix4x4[maxShadowedDirectionalLightCount * maxCascades];
 
+        private static readonly OtherShadowData[] otherShadowData = new OtherShadowData[maxShadowedOtherLightCount];
+        
         private bool useShadowMask;
 
         private Vector4 atlasSizes;
 
         private TextureHandle directionalAtlas, otherAtlas;
+
+        private ComputeBufferHandle
+            directionalShadowCascadesBuffer,
+            directionalShadowMatricesBuffer,
+            otherShadowDataBuffer;
 
         public void Setup(CullingResults cullingResults, ShadowSettings settings)
         {
@@ -100,12 +91,6 @@ namespace LiteRP.Runtime
             this.settings = settings;
             shadowedDirLightCount = shadowedOtherLightCount = 0;
             useShadowMask = false;
-        }
-
-        void ExecuteBuffer()
-        {
-            context.ExecuteCommandBuffer(buffer);
-            buffer.Clear();
         }
 
         //每帧执行，用于为light配置shadow atlas（shadowMap）上预留一片空间来渲染阴影贴图，同时存储一些其他必要信息
@@ -180,6 +165,51 @@ namespace LiteRP.Runtime
             return data;
         }
         
+        public ShadowResources GetResources(RenderGraph renderGraph, RenderGraphBuilder builder)
+        {
+            int atlasSize = (int)settings.directional.atlasSize;
+            var desc = new TextureDesc(atlasSize, atlasSize)
+            {
+                depthBufferBits = DepthBits.Depth32,
+                isShadowMap = true,
+                name = "Directional Shadow Atlas"
+            };
+            directionalAtlas = shadowedDirLightCount > 0 ?
+                builder.WriteTexture(renderGraph.CreateTexture(desc)) :
+                renderGraph.defaultResources.defaultShadowTexture;
+
+            directionalShadowCascadesBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
+                new ComputeBufferDesc
+                {
+                    name = "Shadow Cascades",
+                    count = maxCascades,
+                    stride = DirectionalShadowCascade.stride
+                }));
+            directionalShadowMatricesBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(
+                new ComputeBufferDesc
+                {
+                    name = "Directional Shadow Matrices",
+                    count = maxShadowedDirectionalLightCount * maxCascades,
+                    stride = 4 * 16
+                }));
+
+            atlasSize = (int)settings.additionalLights.atlasSize;
+            desc.width = desc.height = atlasSize;
+            desc.name = "Other Shadow Atlas";
+            otherAtlas = shadowedOtherLightCount > 0 ?
+                builder.WriteTexture(renderGraph.CreateTexture(desc)) :
+                renderGraph.defaultResources.defaultShadowTexture;
+
+            otherShadowDataBuffer = builder.WriteComputeBuffer(renderGraph.CreateComputeBuffer(new ComputeBufferDesc
+            {
+                name = "Other Shadow Data",
+                count = maxShadowedOtherLightCount,
+                stride = OtherShadowData.stride
+            }));
+            return new ShadowResources(directionalAtlas, otherAtlas, directionalShadowCascadesBuffer,
+                directionalShadowMatricesBuffer, otherShadowDataBuffer);
+        }
+        
         public void Render(RenderGraphContext context)
         {
             buffer = context.cmd;
@@ -193,7 +223,11 @@ namespace LiteRP.Runtime
             {
                 RenderOtherShadows();
             }
+            SetKeywords(filterQualityKeywords, (int)settings.filterQuality - 1);
             
+            buffer.SetGlobalBuffer(directionalShadowCascadesId, directionalShadowCascadesBuffer);
+            buffer.SetGlobalBuffer(dirShadowMatricesId, directionalShadowMatricesBuffer);
+            buffer.SetGlobalBuffer(otherShadowDataId, otherShadowDataBuffer);
             buffer.SetGlobalTexture(dirShadowAtlasId, directionalAtlas);
             buffer.SetGlobalTexture(otherShadowAtlasId, otherAtlas);
             
@@ -230,12 +264,13 @@ namespace LiteRP.Runtime
             {
                 RenderDirectionalShadows(i, split, tileSize);
             }
-		    
-            buffer.SetGlobalVectorArray(cascadeCullingSpheresId, cascadeCullingSpheres);
-            buffer.SetGlobalVectorArray(cascadeDataId, cascadeData);
-            buffer.SetGlobalMatrixArray(dirShadowMatricesId, dirShadowMatrices);
-            SetKeywords(directionalFilterKeywords, (int)settings.directional.filter - 1);
-            SetKeywords(cascadeBlendKeywords, (int)settings.directional.cascadeBlend - 1);
+
+            buffer.SetBufferData(directionalShadowCascadesBuffer, directionalShadowCascades, 0, 0,
+                settings.directional.cascadeCount);
+            buffer.SetBufferData(directionalShadowMatricesBuffer, directionalShadowMatrices, 0, 0,
+                shadowedDirLightCount * settings.directional.cascadeCount);
+            
+            buffer.SetKeyword(softCascadeBlendKeyword, settings.directional.softCascadeBlend);
             buffer.EndSample("Directional Shadows");
             ExecuteBuffer();
         }
@@ -262,10 +297,11 @@ namespace LiteRP.Runtime
                 shadowSettings.splitData = splitData;
                 if (index == 0)
                 {
-                    SetCascadeData(i, splitData.cullingSphere, tileSize);
+                    directionalShadowCascades[i] = new DirectionalShadowCascade(splitData.cullingSphere, tileSize,
+                        settings.DirectionalFilterSize);
                 }
                 int tileIndex = tileOffset + i;
-                dirShadowMatrices[tileIndex] = ConvertToAtlasMatrix(projectionMatrix * viewMatrix,
+                directionalShadowMatrices[tileIndex] = ConvertToAtlasMatrix(projectionMatrix * viewMatrix,
                     SetTileViewport(tileIndex, split, tileSize), tileScale);
                 buffer.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
                 buffer.SetGlobalDepthBias(0f, light.slopeScaleBias);
@@ -273,16 +309,6 @@ namespace LiteRP.Runtime
                 context.DrawShadows(ref shadowSettings);
                 buffer.SetGlobalDepthBias(0f, 0f);
             }
-        }
-        
-        void SetCascadeData(int index, Vector4 cullingSphere, float tileSize)
-        {
-            float texelSize = 2f * cullingSphere.w / tileSize;
-            float filterSize = texelSize * ((float)settings.directional.filter + 1f);
-            cullingSphere.w -= filterSize;
-            cullingSphere.w *= cullingSphere.w;
-            cascadeCullingSpheres[index] = cullingSphere;
-            cascadeData[index] = new Vector4(1f / cullingSphere.w, filterSize * 1.4142136f);
         }
         
         void RenderOtherShadows()
@@ -316,19 +342,10 @@ namespace LiteRP.Runtime
                 }
             }
             
-            buffer.SetGlobalMatrixArray(otherShadowMatricesId, otherShadowMatrices);
-            buffer.SetGlobalVectorArray(otherShadowTilesId, otherShadowTiles);
-            SetKeywords(otherFilterKeywords, (int)settings.additionalLights.filter - 1);
+            buffer.SetBufferData(otherShadowDataBuffer, otherShadowData, 0, 0, shadowedOtherLightCount);
+            
             buffer.EndSample("Other Shadows");
             ExecuteBuffer();
-        }
-
-        private void SetKeywords(GlobalKeyword[] keywords, int enabledIndex)
-        {
-            for (int i = 0; i < keywords.Length; i++)
-            {
-                buffer.SetKeyword(keywords[i], i == enabledIndex);
-            }
         }
 
         /// <summary>
@@ -349,12 +366,12 @@ namespace LiteRP.Runtime
                 out Matrix4x4 viewMatrix, out Matrix4x4 projectionMatrix, out ShadowSplitData splitData);
             shadowSettings.splitData = splitData;
             float texelSize = 2f / (tileSize * projectionMatrix.m00);
-            float filterSize = texelSize * ((float)settings.additionalLights.filter + 1f);
+            float filterSize = texelSize * settings.OtherFilterSize;
             float bias = light.normalBias * filterSize * 1.4142136f;
             Vector2 offset = SetTileViewport(index, split, tileSize);
             float tileScale = 1f / split;
-            SetOtherTileData(index, offset, tileScale, bias);
-            otherShadowMatrices[index] = ConvertToAtlasMatrix(projectionMatrix * viewMatrix, offset, tileScale);
+            otherShadowData[index] = new OtherShadowData(offset, tileScale, bias, atlasSizes.w * 0.5f,
+                ConvertToAtlasMatrix(projectionMatrix * viewMatrix, offset, tileScale));
             buffer.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
             buffer.SetGlobalDepthBias(0f, light.slopeScaleBias);
             ExecuteBuffer();
@@ -378,7 +395,7 @@ namespace LiteRP.Runtime
             };
             
             float texelSize = 2f / tileSize;
-            float filterSize = texelSize * ((float)settings.additionalLights.filter + 1f);
+            float filterSize = texelSize * settings.OtherFilterSize;
             float bias = light.normalBias * filterSize * 1.4142136f;
             float tileScale = 1f / split;
             float fovBias = Mathf.Atan(1f + bias + filterSize) * Mathf.Rad2Deg * 2f - 90f;
@@ -393,8 +410,8 @@ namespace LiteRP.Runtime
                 shadowSettings.splitData = splitData;
                 int tileIndex = index + i;
                 Vector2 offset = SetTileViewport(tileIndex, split, tileSize);
-                SetOtherTileData(tileIndex, offset, tileScale, bias);
-                otherShadowMatrices[tileIndex] = ConvertToAtlasMatrix(projectionMatrix * viewMatrix, offset, tileScale);
+                otherShadowData[index] = new OtherShadowData(offset, tileScale, bias, atlasSizes.w * 0.5f,
+                    ConvertToAtlasMatrix(projectionMatrix * viewMatrix, offset, tileScale));
                 buffer.SetViewProjectionMatrices(viewMatrix, projectionMatrix);
                 buffer.SetGlobalDepthBias(0f, light.slopeScaleBias);
                 ExecuteBuffer();
@@ -402,16 +419,11 @@ namespace LiteRP.Runtime
                 buffer.SetGlobalDepthBias(0f, 0f);
             }
         }
-
-        private void SetOtherTileData(int index, Vector2 offset, float scale, float bias)
+        
+        void ExecuteBuffer()
         {
-            float border = atlasSizes.w * 0.5f;
-            Vector4 data;
-            data.x = offset.x * scale + border;
-            data.y = offset.y * scale + border;
-            data.z = scale - border - border;
-            data.w = bias;
-            otherShadowTiles[index] = data;
+            context.ExecuteCommandBuffer(buffer);
+            buffer.Clear();
         }
         
         Vector2 SetTileViewport (int index, int split, float tileSize)
@@ -419,6 +431,14 @@ namespace LiteRP.Runtime
             Vector2 offset = new Vector2(index % split, index / split);
             buffer.SetViewport(new Rect(offset.x * tileSize, offset.y * tileSize, tileSize, tileSize));
             return offset;
+        }
+        
+        private void SetKeywords(GlobalKeyword[] keywords, int enabledIndex)
+        {
+            for (int i = 0; i < keywords.Length; i++)
+            {
+                buffer.SetKeyword(keywords[i], i == enabledIndex);
+            }
         }
         
         Matrix4x4 ConvertToAtlasMatrix(Matrix4x4 m, Vector2 offset, float scale)
@@ -444,28 +464,6 @@ namespace LiteRP.Runtime
             m.m22 = 0.5f * (m.m22 + m.m32);
             m.m23 = 0.5f * (m.m23 + m.m33);
             return m;
-        }
-        
-        public ShadowTextures GetRenderTextures(RenderGraph renderGraph, RenderGraphBuilder builder)
-        {
-            int atlasSize = (int)settings.directional.atlasSize;
-            var desc = new TextureDesc(atlasSize, atlasSize)
-            {
-                depthBufferBits = DepthBits.Depth32,
-                isShadowMap = true,
-                name = "Directional Shadow Atlas"
-            };
-            directionalAtlas = shadowedDirLightCount > 0 ?
-                builder.WriteTexture(renderGraph.CreateTexture(desc)) :
-                renderGraph.defaultResources.defaultShadowTexture;
-
-            atlasSize = (int)settings.additionalLights.atlasSize;
-            desc.width = desc.height = atlasSize;
-            desc.name = "Other Shadow Atlas";
-            otherAtlas = shadowedOtherLightCount > 0 ?
-                builder.WriteTexture(renderGraph.CreateTexture(desc)) :
-                renderGraph.defaultResources.defaultShadowTexture;
-            return new ShadowTextures(directionalAtlas, otherAtlas);
         }
     }
 }

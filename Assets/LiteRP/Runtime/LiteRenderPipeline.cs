@@ -9,31 +9,19 @@ namespace LiteRP.Runtime
     {
         private CameraRenderer renderer;
 
-        private CameraBufferSettings cameraBufferSettings;
-
         private readonly RenderGraph renderGraph = new("LiteRP Render Graph");
 
-        private bool useSRPBatcher, useLightsPerObject;
+        private bool useSRPBatcher;
 
-        private ShadowSettings shadowSettings;
-
-        private PostFXSettings postFXSettings;
-
-        private int colorLUTResolution;
+        private readonly LiteRenderPipelineSettings settings;
         
-        public LiteRenderPipeline(CameraBufferSettings cameraBufferSettings, bool useSRPBatcher,
-            bool useLightsPerObject, ShadowSettings shadowSettings, PostFXSettings postFXSettings,
-            int colorLUTResolution, Shader cameraRendererShader)
+        public LiteRenderPipeline(LiteRenderPipelineSettings settings)
         {
-            this.colorLUTResolution = colorLUTResolution;
-            this.cameraBufferSettings = cameraBufferSettings;
-            this.postFXSettings = postFXSettings;
-            this.shadowSettings = shadowSettings;
-            this.useLightsPerObject = useLightsPerObject;
-            GraphicsSettings.useScriptableRenderPipelineBatching = useSRPBatcher;
+            this.settings = settings;
+            GraphicsSettings.useScriptableRenderPipelineBatching = settings.useSRPBatcher;
             GraphicsSettings.lightsUseLinearIntensity = true;
             InitializeForEditor();
-            renderer = new CameraRenderer(cameraRendererShader);
+            renderer = new CameraRenderer(settings.cameraRendererShader, settings.cameraDebuggerShader);
         }
         
         protected override void Render(ScriptableRenderContext context, Camera[] cameras)
@@ -45,8 +33,7 @@ namespace LiteRP.Runtime
         {
             for (int i = 0; i < cameras.Count; i++)
             {
-                renderer.Render(renderGraph, context, cameras[i], cameraBufferSettings, useLightsPerObject,
-                    shadowSettings, postFXSettings, colorLUTResolution);
+                renderer.Render(renderGraph, context, cameras[i], settings);
             }
             renderGraph.EndFrame();
         }

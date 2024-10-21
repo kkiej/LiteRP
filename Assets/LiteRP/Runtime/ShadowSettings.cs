@@ -26,14 +26,33 @@ namespace LiteRP.Runtime
         {
             PCF2x2, PCF3x3, PCF5x5, PCF7x7
         }
+        
+        /// <summary>
+        /// Shadow filter quality levels.
+        /// Should match filters used in the shader: PCF3x3, PCF5x5, and PCF7x7.
+        /// </summary>
+        public enum FilterQuality
+        { Low, Medium, High }
+
+        public FilterQuality filterQuality = FilterQuality.Medium;
+        
+        /// <summary>
+        /// Directional shadow filter size, in texels.
+        /// Should match the filter used in the shader for the quality level.
+        /// </summary>
+        public float DirectionalFilterSize => (float)filterQuality + 2f;
+
+        /// <summary>
+        /// Other shadow filter size, in texels.
+        /// Should match the filter used in the shader for the quality level.
+        /// </summary>
+        public float OtherFilterSize => (float)filterQuality + 2f;
 
         [System.Serializable]
         public struct Directional
         {
             public MapSize atlasSize;
-
-            public FilterMode filter;
-
+            
             [Range(1, 4)]
             public int cascadeCount;
             
@@ -43,19 +62,24 @@ namespace LiteRP.Runtime
             public Vector3 CascadeRatios => new Vector3(cascadeRatio1, cascadeRatio2, cascadeRatio3);
 
             [Range(0.001f, 1f)] public float cascadeFade;
+            
+            public bool softCascadeBlend;
 
             public enum CascadeBlendMode
             {
                 Hard, Soft, Dither
             }
 
+            [Header("Deprecated Settings"), Tooltip("Use new boolean toggle.")]
             public CascadeBlendMode cascadeBlend;
+            
+            [Tooltip("Use new Filter Quality.")]
+            public FilterMode filter;
         }
 
         public Directional directional = new Directional()
         {
             atlasSize = MapSize._1024,
-            filter = FilterMode.PCF2x2,
             cascadeCount = 4,
             cascadeRatio1 = 0.1f,
             cascadeRatio2 = 0.25f,
@@ -68,13 +92,14 @@ namespace LiteRP.Runtime
         public struct Other
         {
             public MapSize atlasSize;
+            
+            [Header("Deprecated Settings"), Tooltip("Use new Filter Quality.")]
             public FilterMode filter;
         }
 
         public Other additionalLights = new Other()
         {
-            atlasSize = MapSize._1024,
-            filter = FilterMode.PCF2x2
+            atlasSize = MapSize._1024
         };
     }
 }

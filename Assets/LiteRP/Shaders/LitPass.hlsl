@@ -104,7 +104,7 @@ float4 LitPassFragment(Varyings input) : SV_TARGET
 #endif
 
     GI gi = GetGI(GI_FRAGMENT_DATA(input), surface, brdf);
-    float3 col = GetLighting(surface, brdf, gi);
+    float3 col = GetLighting(config.fragment, surface, brdf, gi);
     col += GetEmission(config);
     
     return float4(col, GetFinalAlpha(surface.alpha));
