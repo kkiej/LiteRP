@@ -100,9 +100,7 @@ namespace LiteRP.Runtime
             
             //bufferSettings.fxaa.enabled &= cameraSettings.allowFXAA;
             bufferSettings.fxaa.enabled = cameraSettings.allowFXAA;
-
-            bool useIntermediateBuffer = true;
-
+            
             var renderGraphParameters = new RenderGraphParameters()
             {
                 commandBuffer = CommandBufferPool.Get(),
@@ -118,8 +116,8 @@ namespace LiteRP.Runtime
                 LightResources lightResources = LightingPass.Record(renderGraph, cullingResults, bufferSize,
                     settings.forwardPlus, shadowSettings, cameraSettings.maskLights ?
                         cameraSettings.renderingLayerMask : -1);
-                CameraRendererTextures textures = SetupPass.Record(renderGraph, useIntermediateBuffer, useColorTexture,
-                    useDepthTexture, bufferSettings.allowHDR, bufferSize, camera);
+                CameraRendererTextures textures = SetupPass.Record(renderGraph, useColorTexture, useDepthTexture,
+                    bufferSettings.allowHDR, bufferSize, camera);
 
                 GeometryPass.Record(renderGraph, camera, cullingResults, cameraSettings.renderingLayerMask, true,
                     textures, lightResources);
@@ -143,12 +141,12 @@ namespace LiteRP.Runtime
                     postFXStack.Settings = postFXSettings;
                     PostFXPass.Record(renderGraph, postFXStack, (int)settings.colorLUTResolution, cameraSettings.keepAlpha, textures);
                 }
-                else if (useIntermediateBuffer)
+                else
                 {
                     FinalPass.Record(renderGraph, copier, textures);
                 }
                 DebugPass.Record(renderGraph, settings, camera, lightResources);
-                GizmosPass.Record(renderGraph, useIntermediateBuffer, copier, textures);
+                GizmosPass.Record(renderGraph, copier, textures);
             }
             
             context.ExecuteCommandBuffer(renderGraphParameters.commandBuffer);
